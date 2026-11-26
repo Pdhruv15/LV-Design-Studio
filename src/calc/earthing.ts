@@ -183,6 +183,7 @@ export interface EarthingResult {
   requiredBasis: string;
   basisSupported: boolean;
   disconnection: Status; // ok: trips instantaneously; warn: 5 s circuit relying on the thermal region; bad: too slow
+  adiabaticK: number; // material factor used in the adiabatic calculation
   /** Minimum area of each protective conductor for the fault energy, from the current through it
    * (cpcCurrentA): the whole fault current for one run; for parallel runs, its equal share (ENG-012). */
   adiabaticMinMm2: number;
@@ -270,6 +271,7 @@ export function evaluateEarthing(project: Project, f: Feeder): EarthingResult {
     requiredBasis: db.basis,
     basisSupported: db.supported,
     disconnection,
+    adiabaticK: k,
     adiabaticMinMm2,
     adiabatic,
     runs,

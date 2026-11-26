@@ -4,6 +4,7 @@ import { runCalculations } from '../calc/runs';
 import { boardSummary } from '../calc/summary';
 import { buildSection, buildStudyReportHtml, drawingProject, scopeOf, scopeText, STUDIES, type CalcData } from './studyReport';
 import { buildStudyWorkbook } from './studyWorkbook';
+import { calcReportSections } from './calcReport';
 import { fig } from '../util/format';
 
 const run = runCalculations(sampleProject);
@@ -49,6 +50,33 @@ describe('study reports for part of the network', () => {
     }
     const whole = buildSection('earth', data, scopeOf(sampleProject, { boards: [], downstream: true }));
     expect(whole.tables[0].rows.length).toBe(run.earthing.length); // final circuits included
+  });
+
+  it('reports the calculated CPC factors for mixed cable families and honours the report scope', () => {
+    const pvc = sampleProject.feeders.find((f) => f.boardId === sub.id && f.feedsBoardId)!;
+    const project = { ...sampleProject, cableDataByType: true, feeders: sampleProject.feeders.map((f) => ({
+      ...f, cableType: f.boardId === sub.id || f.feedsBoardId === sub.id ? 'PVC/SWA/PVC' : 'XLPE/SWA/PVC'
+    })) };
+    const r = runCalculations(project);
+    const d: CalcData = { project: r.project, results: r.results, earthing: r.earthing, selectivity: r.selectivity };
+    const scoped = buildSection('earth', d, scopeOf(project, { boards: [sub.id], downstream: false }));
+    expect(scoped.criteria).toContainEqual(['Protective conductor', 'Adiabatic, k = 115']);
+    expect(scoped.method.join(' ')).toContain('S ≥ I·√t ÷ 115');
+    expect(scoped.method.join(' ')).not.toContain('143');
+
+    const whole = calcReportSections(project).find((s) => s.key === 'earth')!;
+    expect(whole.criteria).toContainEqual(['Protective conductor', 'Adiabatic, k by cable family']);
+    expect(whole.method[1]).toContain('S ≥ I·√t ÷ k');
+    const table = whole.tables[0], cpc = table.headers.indexOf('CPC min, each (mm²)');
+    expect(table.rows.find((row) => row[0] === pvc.id)?.[cpc]).toMatchObject({ v: expect.stringContaining('k = 115') });
+    expect(table.rows.map((row) => row[cpc])).toContainEqual(expect.objectContaining({ v: expect.stringContaining('k = 143') }));
+  });
+
+  it('reports the legacy factor when cable data by type is off', () => {
+    const project = { ...sampleProject, cableDataByType: false, feeders: sampleProject.feeders.map((f) => ({ ...f, cableType: 'PVC/SWA/PVC' })) };
+    const earth = calcReportSections(project).find((s) => s.key === 'earth')!;
+    expect(earth.criteria).toContainEqual(['Protective conductor', 'Adiabatic, k = 143']);
+    expect(earth.method[1]).toContain('S ≥ I·√t ÷ 143');
   });
 
   it('the drawing holds only the scope; its top board still names its supply', () => {

@@ -300,12 +300,21 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
     const want = new Set([...circuits, ...scope.finals].map((f) => f.id));
     const es = data.earthing.filter((e) => want.has(e.feeder.id));
     const statuses = es.map((e) => e.status);
+    const firstK = es[0]?.adiabaticK;
+    const commonK = es.every((e) => e.adiabaticK === firstK) ? firstK : undefined;
+    const cpcMin = (e: EarthingResult): Cell => {
+      const notes: string[] = [];
+      if (commonK === undefined) notes.push(`k = ${e.adiabaticK}`);
+      if (e.runs > 1) notes.push(`${e.runs} runs, ${fig.current(e.cpcCurrentA)} A each${e.adiabatic === 'warn' ? ', assumed sharing' : ''}`);
+      return { v: `${fig.plain(e.adiabaticMinMm2, 1)}${notes.length ? ` (${notes.join(', ')})` : ''}`, s: e.adiabatic };
+    };
     return {
       key, title: info.title, statuses,
+      criteria: [['Protective conductor', commonK === undefined ? 'Adiabatic, k by cable family' : `Adiabatic, k = ${commonK}`]],
       method: [
         'TN-S system. Earth fault loop impedance Zs = Ze (at the supply board) + (R phase + R cpc) of the circuit, at operating temperature; minimum fault current with c = 0.95.',
-        'Protective conductor (adiabatic): S ≥ I·√t ÷ 143, t = 0.1 s when tripping instantaneously (not the device let-through energy), with I the current through the conductor checked. Parallel runs: each CPC carries an equal share of the end-of-circuit fault (identical runs bonded at both ends); a result that passes only on that assumption is marked "assumed sharing" (warning) because a fault within one run or unequal runs are not covered. The total fault current sets the disconnection check.',
-        `Disconnection per IEC 60364-4-41 Table 41.1 (TN, U0 in the 230 V band): 0.4 s for final circuits up to 63 A with socket-outlets and up to 32 A supplying fixed equipment only; 5 s for distribution circuits and other final circuits. Circuits whose purpose is not set are treated as socket-outlet circuits.${data.project.strictFinalDisconnection ? ' Project rule (stricter than the standard): every final circuit up to 63 A in 0.4 s.' : ''} Instantaneous tripping when If ≥ Ia; below that, a 5 s circuit needs the breaker's time-current curve checked. Protective conductor checked by the adiabatic equation (k = 143).`
+        `Protective conductor (adiabatic): S ≥ I·√t ÷ ${commonK ?? 'k (from the cable family)'}, t = 0.1 s when tripping instantaneously (not the device let-through energy), with I the current through the conductor checked. Parallel runs: each CPC carries an equal share of the end-of-circuit fault (identical runs bonded at both ends); a result that passes only on that assumption is marked "assumed sharing" (warning) because a fault within one run or unequal runs are not covered. The total fault current sets the disconnection check.`,
+        `Disconnection per IEC 60364-4-41 Table 41.1 (TN, U0 in the 230 V band): 0.4 s for final circuits up to 63 A with socket-outlets and up to 32 A supplying fixed equipment only; 5 s for distribution circuits and other final circuits. Circuits whose purpose is not set are treated as socket-outlet circuits.${data.project.strictFinalDisconnection ? ' Project rule (stricter than the standard): every final circuit up to 63 A in 0.4 s.' : ''} Instantaneous tripping when If ≥ Ia; below that, a 5 s circuit needs the breaker's time-current curve checked. Protective conductor checked by the adiabatic equation${commonK === undefined ? '' : ` (k = ${commonK})`}.`
       ],
       summary: [{ label: 'Circuits checked', value: tally(statuses), status: worst(statuses) },
         ...(() => { const m = [...new Set(es.map((e) => e.sourceMissing).filter((x): x is string => !!x))]; return m.length ? [{ label: 'Not verified — supply loop incomplete', value: `${m.join('; ')} (Ze not assumed 0; Zs a minimum, If a maximum)`, status: 'warn' as const }] : []; })(),
@@ -313,7 +322,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
       tables: [{
         title: 'Earth fault loop', headers: ['Circuit', 'Board', 'Breaker', 'CPC (mm²)', 'Zs (Ω)', 'Max Zs (Ω)', 'If (A)', 'Ia (A)', 'Required (s)', 'Disconnection', 'CPC min, each (mm²)', 'Result'],
         rows: es.map((e) => [tag(e.feeder), e.feeder.boardId, `${e.feeder.breakerRatingA} A ${breakerTypeOf(e.feeder)}`, e.cpcMm2, e.sourceMissing ? loopFigures(e).zs : fig.ohm(e.zsOhm), fig.ohm(e.maxZsOhm), e.sourceMissing ? (Number.isFinite(e.faultA) ? `≤ ${fig.current(e.faultA)}` : '—') : fig.current(e.faultA), fig.current(e.tripA), `${e.requiredS}${e.requiredBasis.startsWith('Project rule') ? ' (project rule)' : ''}${e.basisSupported ? '' : ' (not verified)'}`,
-          { v: disconnectionLabel(e), s: e.disconnection }, { v: `${fig.plain(e.adiabaticMinMm2, 1)}${e.runs > 1 ? ` (${e.runs} runs, ${fig.current(e.cpcCurrentA)} A each${e.adiabatic === 'warn' ? ', assumed sharing' : ''})` : ''}`, s: e.adiabatic }, S(e.status)])
+          { v: disconnectionLabel(e), s: e.disconnection }, cpcMin(e), S(e.status)])
       }]
     };
   }
