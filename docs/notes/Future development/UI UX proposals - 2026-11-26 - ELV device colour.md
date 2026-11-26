@@ -1,6 +1,6 @@
 # UI UX proposal – ELV device colour (2026-11-26)
 
-Status: **Proposal, waiting for a decision. Nothing is built.**
+Status: **Approved 2026-11-26: the user answered "Go with recommendation" (F1 A, F2 rose, F3 yes). Being built.**
 
 Decision F of the Devices tools proposal (2026-11-23).
 
@@ -32,9 +32,9 @@ One new token `--elv-dev` in `src/theme/tokens.css` (`:root` #ff5fa2, light #c02
 
 ## Decisions
 
-- **F1. Which option:** A (recommended), B or C.
-- **F2. Which shade for A:** rose (recommended) or violet (weaker for green-weak sight).
-- **F3. Coverage circles follow the ELV colour:** yes (recommended) or keep them in the accent colour.
+- **F1. Which option:** A (recommended), B or C. **Approved: A.**
+- **F2. Which shade for A:** rose (recommended) or violet (weaker for green-weak sight). **Approved: rose.**
+- **F3. Coverage circles follow the ELV colour:** yes (recommended) or keep them in the accent colour. **Approved: yes.**
 
 ## Checks behind the numbers
 
