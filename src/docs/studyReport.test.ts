@@ -67,8 +67,9 @@ describe('study reports for part of the network', () => {
     const whole = calcReportSections(project).find((s) => s.key === 'earth')!;
     expect(whole.criteria).toContainEqual(['Protective conductor', 'Adiabatic, k by cable family']);
     expect(whole.method[1]).toContain('S ≥ I·√t ÷ k');
-    expect(whole.tables[0].rows.find((row) => row[0] === pvc.id)?.at(-2)).toMatchObject({ v: expect.stringContaining('k = 115') });
-    expect(whole.tables[0].rows.map((row) => row.at(-2))).toContainEqual(expect.objectContaining({ v: expect.stringContaining('k = 143') }));
+    const table = whole.tables[0], cpc = table.headers.indexOf('CPC min, each (mm²)');
+    expect(table.rows.find((row) => row[0] === pvc.id)?.[cpc]).toMatchObject({ v: expect.stringContaining('k = 115') });
+    expect(table.rows.map((row) => row[cpc])).toContainEqual(expect.objectContaining({ v: expect.stringContaining('k = 143') }));
   });
 
   it('reports the legacy factor when cable data by type is off', () => {
