@@ -1,6 +1,6 @@
 # UI UX proposal – Detached windows for Design CAD and the SLD (2026-11-26)
 
-Status: **Proposed 2026-11-26. Waiting for decisions A–F. Nothing is built.**
+Status: **Approved 2026-11-26: the user answered "Go ahead" to the recommendations (A1, B1, C1, D1, E1, F1). Step 0 (the check) is next; nothing is built yet.**
 
 The user asked for a detached tabs option in Design CAD and the SLD. A detached tab moves out of the main window into a window of its own. For example, the plan can sit on a second monitor beside the SLD.
 
@@ -63,21 +63,27 @@ Mockup: `docs/mockups/detached-windows-mockup.html` (image: `detached-windows-mo
 - **A. What a Design CAD window holds.**
   - A1 (recommended): the whole Design CAD page with all its drawings. The main window then shows the other pages.
   - A2: one drawing per window from the start, while the main window keeps the other drawings (two plans side by side). A2 needs a second copy of the CAD page's own state (tool, selection, layout, pick box and the like) for each window, so it is proposed as step 4.
+  - **Approved: A1.**
 - **B. What an SLD window holds.**
   - B1 (recommended): one SLD tab (System diagram, Board, Earthing or Riser). The main window keeps the other tabs, and the selection is shared.
   - B2: the whole SLD page.
+  - **Approved: B1.**
 - **C. How to detach.**
   - C1 (recommended): Move to new window on the right-click menu, plus a button at the end of the tab row. Dragging a tab out of the window comes in step 5.
   - C2: dragging a tab out from step 1.
+  - **Approved: C1.**
 - **D. Closing a detached window.**
   - D1 (recommended): it puts the tab back with no question.
   - D2: it asks first.
+  - **Approved: D1.**
 - **E. The ribbon in a Design CAD window.**
   - E1 (recommended): only the Design CAD sub-tabs (LVCAD, Annotate, Electrical, ELV & sheets, Output). The main window keeps its full ribbon.
   - E2: no ribbon; only the command line and right-click menus.
+  - **Approved: E1.**
 - **F. Opening detached windows again.**
   - F1 (recommended): the place and size are remembered on this computer, but every tab starts in the main window when the app starts. Detaching again is one click, and no window can be lost off screen.
   - F2: the windows that were detached when the project was last closed open again by themselves.
+  - **Approved: F1.**
 
 ## Steps once approved
 
