@@ -54,7 +54,7 @@ export default function ElcbCellMenu({ group, at, onResize, onEdit, onRemove, on
   return createPortal(
     <div ref={pop} className="menu-pop" role="menu" aria-label={`ELCB-${group.index}`} style={style}>
       <div className="mp-h">ELCB-{group.index} · {elcbWaysText(group.ways)} · {group.label}</div>
-      <ElcbSizes group={group} onPick={(n) => { onClose(); onResize(n); }} />
+      {!group.incomer && <ElcbSizes group={group} onPick={(n) => { onClose(); onResize(n); }} />}
       <button onClick={run(onEdit)}>Edit ELCB-{group.index}…</button>
       <button title="Its ways take the New ELCBs size" onClick={run(onRemove)}>Remove ELCB-{group.index}</button>
       <hr />

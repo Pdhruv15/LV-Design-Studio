@@ -998,6 +998,52 @@ describe('CAD view', () => {
     expect(document.body.textContent).toContain('Coverage: CCTV');
   });
 
+  it('Fill room: Same type fills every room of the clicked room\'s type in one change, Whole level every room with an outline', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const rooms = buildingInfoOf(project).rooms.filter((r) => (r.outline?.length ?? 0) >= 3);
+    const majlis = rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    const scope = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.cad-scope [role=radio]')].find((b) => b.textContent!.startsWith(label))!;
+    const roomsOf = () => new Set((project.elvDevices ?? []).map((d) => d.roomId));
+    act(() => { state.setTool('fill'); });
+    await act(async () => { scope('Same type').click(); });
+    const calls = onChange.mock.calls.length;
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    const same = rooms.filter((r) => r.type === majlis.type).length;
+    expect(roomsOf().size).toBeLessThanOrEqual(same);
+    expect(roomsOf().has(majlis.id)).toBe(true);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^\d+ rooms?: \d+ smoke detectors? placed/);
+    await act(async () => { scope('Whole level').click(); });
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(onChange.mock.calls.length).toBe(calls + 2);
+    expect(roomsOf().size).toBe(rooms.length);
+  });
+
+  it('Light room: Whole level shows Place N lights in M rooms, and Place lights several rooms in one change', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const rooms = buildingInfoOf(project).rooms.filter((r) => (r.outline?.length ?? 0) >= 3);
+    const majlis = rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    await command('LUX');
+    await clickAt(cx / 0.001, cy / 0.001);
+    act(() => state.setFeederId('DB-GF1-Y1'));
+    await act(async () => { ([...document.querySelectorAll<HTMLButtonElement>('.cad-scope [role=radio]')].find((b) => b.textContent!.startsWith('Whole level')))!.click(); });
+    const place = () => document.querySelector('.cad-devbtns .chip.primary') as HTMLButtonElement;
+    const m = /^Place (\d+) lights? in (\d+) rooms?$/.exec(place().textContent!)!;
+    expect(m).toBeTruthy();
+    expect(Number(m[2])).toBeGreaterThan(1);
+    const calls = onChange.mock.calls.length;
+    await act(async () => { place().click(); });
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(new Set((project.lvPoints ?? []).filter((d) => d.type === 'ltg').map((d) => d.x)).size).toBeGreaterThan(1);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(new RegExp(`^${m[1]} lights? placed in ${m[2]} rooms? on \\d+ circuits?`));
+  });
+
   it('keeps the devices placed last, newest first', async () => {
     act(() => root.render(<Host />));
     await flush();
@@ -1071,6 +1117,33 @@ describe('CAD view', () => {
     await act(async () => { approve().click(); });
     expect(lv().length + elv().length).toBe(count);
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toContain('replaced');
+  });
+
+  it('Room devices: Whole level shows Approve N devices in M rooms, and one approval places devices in several rooms in one change', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const rooms = buildingInfoOf(project).rooms.filter((r) => (r.outline?.length ?? 0) >= 3);
+    const majlis = rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    await command('RDT');
+    await clickAt(cx / 0.001, cy / 0.001);
+    const choose = async (label: string, value: string) => {
+      const select = document.querySelector(`select[aria-label="${label}"]`) as HTMLSelectElement;
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, value); select.dispatchEvent(new Event('change', { bubbles: true })); });
+    };
+    await choose('Template lighting circuit', 'DB-GF1-Y1');
+    await choose('Template power circuit', 'DB-GF1-B6');
+    await act(async () => { ([...document.querySelectorAll<HTMLButtonElement>('.cad-scope [role=radio]')].find((b) => b.textContent!.startsWith('Whole level')))!.click(); });
+    const approve = () => [...document.querySelectorAll<HTMLButtonElement>('.cad-devbtns .chip.primary')].find((b) => b.textContent?.startsWith('Approve'))!;
+    const m = /^Approve (\d+) devices? in (\d+) rooms?$/.exec(approve().textContent!)!;
+    expect(m).toBeTruthy();
+    expect(Number(m[2])).toBeGreaterThan(1);
+    const calls = onChange.mock.calls.length;
+    await act(async () => { approve().click(); });
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(new Set((project.lvPoints ?? []).filter((d) => d.type === 'ltg').map((d) => d.x)).size).toBeGreaterThan(1);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(new RegExp(`^RDT  ${m[1]} devices? approved in ${m[2]} rooms?`));
   });
 
   it('lays out emergency lighting (EM): draws an escape route, an open area and a point of emphasis, then places them', async () => {
@@ -4584,6 +4657,73 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     await command('DIMSTYLE R NOPE');
     expect(last()).toBe('DIMSTYLE  There is no dimension style NOPE. D opens the styles.');
   });
+
+  it('QDIM dimensions a pick in one row: Baseline or Continuous, horizontal above it, each place once (v2.305)', async () => {
+    const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
+      { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 6000, 0]] },
+      { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X + 2000, 1000]], r: 300 },
+      { id: 'L2', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 4000, 0], [X + 4000, 2000]] }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const dims = () => project.cadSketch![0].items.filter((it) => it.kind === 'dim');
+    await command('qdim');
+    expect(last()).toContain('QDIM  Select geometry to dimension:');
+    await clickAt(X + 500, 0); await clickAt(X + 2300, 1000); await clickAt(X + 4000, 1000);
+    expect(last()).toBe('QDIM  3 objects selected — Enter when done');
+    await command('');
+    expect(last()).toBe('QDIM  Specify dimension line position, or [Continuous/Baseline] <Continuous>:');
+    await command('B');
+    expect(last()).toBe('QDIM  Specify dimension line position, or [Continuous/Baseline] <Baseline>:');
+    await clickAt(X + 3000, 3000);
+    expect(dims().map((d) => Math.round(dimMeasure(d)))).toEqual([2000, 4000, 6000]);
+    expect(dims().every((d) => d.dir === 0 && d.layer === 'LV-ANNO')).toBe(true);
+    const ys = dims().map((d) => d.pts[2][1]);
+    expect(ys[0]).toBeCloseTo(3000, 6);
+    expect(ys[1]).toBeGreaterThan(ys[0]); expect(ys[2] - ys[1]).toBeCloseTo(ys[1] - ys[0], 6);
+    expect(dims()[1].pts[1]).toEqual([X + 4000, 2000]); // of the two points at X + 4000, the one nearer the line
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('QDIM  3 dimensions, baseline · ⌘Z to undo');
+    // The way it lays the row is kept; Continuous chains them, below the pick.
+    await command('qdim');
+    await clickAt(X + 500, 0); await clickAt(X + 4000, 1000); await command('');
+    expect(last()).toBe('QDIM  Specify dimension line position, or [Continuous/Baseline] <Baseline>:');
+    await command('C'); await clickAt(X + 3000, -1500);
+    expect(dims().slice(3).map((d) => Math.round(dimMeasure(d)))).toEqual([4000, 2000]);
+    for (const d of dims().slice(3)) expect(d.pts[2][1]).toBeCloseTo(-1500, 6);
+    // Enter with nothing picked ends it; a pick with nothing to measure says so.
+    await command('qdim'); await command('');
+    expect(last()).not.toContain('QDIM  Specify dimension line position');
+  });
+
+  it('DIMSPACE spaces the dimensions picked out from the base: a gap in metres, or Auto, leaving others (v2.305)', async () => {
+    const lin = (id: string, y: number): SketchItem => ({ id, kind: 'dim', layer: 'LV-ANNO', pts: [[X, 0], [X + 2000, 0], [X, y]], dir: 0, h: 250 });
+    const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
+      lin('D1', 1000), lin('D2', 2500), lin('D3', 6000),
+      { id: 'V1', kind: 'dim', layer: 'LV-ANNO', pts: [[X + 9000, 0], [X + 9000, 2000], [X + 10000, 0]], dir: Math.PI / 2, h: 250 }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const yOf = (id: string) => project.cadSketch![0].items.find((it) => it.id === id)!.pts[2][1];
+    await command('dimspace');
+    expect(last()).toContain('DIMSPACE  Select base dimension:');
+    await clickAt(X + 1000, 1000);
+    expect(last()).toBe('DIMSPACE  Select dimensions to space:');
+    await clickAt(X + 1000, 2500); await clickAt(X + 1000, 6000); await clickAt(X + 10000, 1000);
+    expect(last()).toBe('DIMSPACE  3 objects selected — Enter when done');
+    await command('');
+    expect(last()).toBe('DIMSPACE  Enter value or [Auto] <Auto>:');
+    await command('0.7');
+    expect([yOf('D1'), yOf('D2'), yOf('D3')]).toEqual([1000, 1700, 2400]);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('DIMSPACE  2 dimensions spaced 0.70 m apart; 1 at another angle, or radial, left as it was · ⌘Z to undo');
+    // Auto: twice the base's text (250 → 500).
+    await command('dimspace'); await clickAt(X + 1000, 1000); await clickAt(X + 1000, 1700); await clickAt(X + 1000, 2400); await command(''); await command('');
+    expect([yOf('D2'), yOf('D3')]).toEqual([1500, 2000]);
+    // 0 lines them up with the base.
+    await command('dimspace'); await clickAt(X + 1000, 1000); await clickAt(X + 1000, 1500); await clickAt(X + 1000, 2000); await command(''); await command('0');
+    expect([yOf('D2'), yOf('D3')]).toEqual([1000, 1000]);
+  });
 });
 
 describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to type over it', () => {
@@ -5698,6 +5838,25 @@ describe('right-click menus, phase 2: LV and ELV objects and the tools behind th
     expect(buildingInfoOf(project).rooms[0].type).toBe('retail');
     await right(102500, 102500);
     await pickEntry('Room Plant room', 'Light room…');
+    expect(state.tool).toBe('lux');
+  });
+
+  it('checks the level (CHK): the list is in the side panel, a line says where it goes, Light room starts on that room', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    await command('CHK');
+    expect(state.tool).toBe('check');
+    expect(document.body.textContent).toContain('Check level');
+    const lines = [...document.querySelectorAll('.cad-chk-line')] as HTMLButtonElement[];
+    const none = lines.find((b) => / — no light$/.test(b.textContent ?? ''))!;
+    expect(none).toBeDefined();
+    await act(async () => { none.click(); });
+    expect(hist()).toContain(`CHK  ${none.textContent}`);
+    const fix = none.closest('.cad-chk-row')!.querySelector('.cad-chk-fix') as HTMLButtonElement;
+    expect(fix.textContent).toBe('Light room');
+    await act(async () => { fix.click(); });
+    await flush();
     expect(state.tool).toBe('lux');
   });
 

@@ -41,7 +41,7 @@ import BlocksPalette, { INSERT_DEFAULTS, type InsertSettings, type LibraryFile }
 import { alignedMleaders, collectedMleaders, mleaderNote, newMleader, nearestLeader, withLeaderAdded, withLeaderRemoved } from '../../model/cadMleader';
 import { attachLabel, attachOf, noteAttached, noteBox, noteWithWidth, parseAttach, plainText, type NoteAttach, type NotePara } from '../../model/cadMtext';
 import { ATT_DRAFT, AttDefDialog, AttEditDialog, AttPromptDialog, BlockDialog, DIALOG_TOOLS, DimStyleDialog, EditDialog, MleaderStyleDialog, PointStyleDialog, TextStyleDialog, type AttDraft, type BlockDraft } from './CadDialogs';
-import { dimDirFor, dimLayerOf, dimLayerSetting, dimPicksObject, pickedDimStyle, restyledDims, USE_CURRENT, withDimLayer } from '../../model/cadDimTools';
+import { autoDimGap, dimDirFor, dimLayerOf, dimLayerSetting, dimPicksObject, pickedDimStyle, qdimPointsOf, qdimPointsOfDrawing, quickDims, restyledDims, spacedDims, USE_CURRENT, withDimLayer, type QdimMode } from '../../model/cadDimTools';
 import { currentDimStyle, currentMleaderStyle, currentTextStyle, dimLookOf, mleaderStylesOf, mleaderStylesToStore, dimStandardAsBefore, dimStylesOf, dimStylesToStore, lookOf, STANDARD, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, openDrawing, readRefGeometry, reopenDrawing, sampleDrawing, type CadObject, type CadView, type DeviceOut } from '../../engines/cad/cadEngine';
 import { planSymbolShapes, symbolBox } from '../../model/planSymbols';
@@ -60,7 +60,7 @@ import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, isElvType, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
-import { canFill, copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
+import { canFill, copyTo, coverageGaps, coverageNote, elvLayer, fillAt, fillRooms, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { safeFileName, saveBinary, saveBinaryAt, savePdf, saveText } from '../../util/files';
 import { angleDeg, areaOf, boxOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -73,6 +73,8 @@ import type { PlanTarget } from '../../model/planTarget';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
 import CadLayerTable from '../CadLayerTable';
 import CadTabs from './CadTabs';
+import LevelCheckPanel from './LevelCheckPanel';
+import { checkLevel, type LevelFinding } from '../../model/levelCheck';
 import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './RoomLightingPanel';
 import { placeRoomLights } from '../../model/roomLights';
 import RoomDeviceTemplatePanel from './RoomDeviceTemplatePanel';
@@ -119,6 +121,8 @@ import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
 import { floorLabel, floorList, type Floor } from '../../model/levels';
 import { circuitRoom, nextWithRoom, pointMax } from '../../model/circuitRoom';
+import { planRoomLights, planRoomSets, ROOM_SCOPE_MAX, roomsInScope, scopeCounts, type RoomScope } from '../../model/roomScope';
+import RoomScopeButtons from './RoomScopeButtons';
 import CircuitPicker from './CircuitPicker';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
 import { fmtFixed, fmtUpTo } from '../../util/format';
@@ -157,7 +161,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'dimal', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM (click a line, arc or circle, or two points) · DLI (linear) · DAL (aligned) · DRA (radius) · DDI (diameter) · DAN (angular) · DIMLAYER (layer of new dimensions) · ST (text style) · D (dimension style; DIMSTYLE A updates the dimensions picked) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM (click a line, arc or circle, or two points) · DLI (linear) · DAL (aligned) · DRA (radius) · DDI (diameter) · DAN (angular) · QDIM (a row of dimensions over a pick) · DIMSPACE (space rows of dimensions) · DIMLAYER (layer of new dimensions) · ST (text style) · D (dimension style; DIMSTYLE A updates the dimensions picked) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Bind's count in the Save line: reference lines, texts and hatches. */
 const boundText = (shapes: { kind: string }[]) => {
   const n = (k: string) => shapes.filter((x) => x.kind === k).length, en = (v: number) => v.toLocaleString('en-GB');
@@ -169,6 +173,7 @@ const PROMPT: Record<CadTool, string> = {
   dist: 'DI  Specify first point:',
   area: 'AREA  Specify first corner point or [Object]:',
   containment: 'CONTAINMENTCHECK  Select an LV cable-tray segment:',
+  check: 'CHK  The list is in the side panel: click a line to go there.',
   room: 'ROOM  Click inside a room (its outline comes from the walls):',
   trace: 'TRACE  Specify first corner of the room:',
   name: 'NAME  Click the room name on the drawing:',
@@ -263,6 +268,8 @@ const PROMPT: Record<CadTool, string> = {
   dimal: 'DIMALIGNED  Specify first extension line origin:',
   dimcont: 'DIMCONTINUE  Specify second extension line origin (from the last dimension):',
   dimbase: 'DIMBASELINE  Specify second extension line origin (from the last dimension):',
+  qdim: 'QDIM  Select geometry to dimension:',
+  dimspace: 'DIMSPACE  Select base dimension:',
   dimrad: 'DIMRADIUS  Select arc or circle:',
   dimdia: 'DIMDIAMETER  Select arc or circle:',
   dimang: 'DIMANGULAR  Select arc, circle, line or <specify vertex>:',
@@ -290,6 +297,10 @@ type CropState = { step: 'pick' | 'confirm' | 'outline' | 'centre' | 'radius' | 
 const arrayType = (s: EditSettings) => `ARRAY  Enter array type [Rectangular/Polar] <${s.polar ? 'Polar' : 'Rectangular'}>:`;
 const ALIGN_SAY = ['ALIGN  Specify first source point:', 'ALIGN  Specify first destination point:', 'ALIGN  Specify second source point or <continue>:', 'ALIGN  Specify second destination point:'];
 const ALIGN_ASK = 'ALIGN  Scale objects to the alignment points? [Yes/No] <No>:';
+/** Quick dimension: where the row goes, with the way it is laid; and the most it draws at once. */
+const qdimWhere = (mode: QdimMode) => `QDIM  Specify dimension line position, or [Continuous/Baseline] <${mode === 'continuous' ? 'Continuous' : 'Baseline'}>:`;
+const QDIM_MAX = 300;
+const DIMSPACE_GAP = 'DIMSPACE  Enter value or [Auto] <Auto>:';
 const mirrorAsk = (s: EditSettings) => `MIRROR  Erase source objects? [Yes/No] <${s.keep ? 'No' : 'Yes'}>:`;
 /** Layer of the cable routes drawn or linked in the app. */
 const CABLE_LAYER = 'E-CABLE';
@@ -434,6 +445,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Light room (LUX): the room kept (its lights stay previewed while the panel is edited) and the panel's settings.
   const [luxRoom, setLuxRoom] = useState<string | null>(null);
   const [luxSet, setLuxSet] = useState<LuxSettings>(LUX_START);
+  // All rooms like this: the rooms one run of Fill room or Light room takes; kept when the tool is left.
+  const [roomScope, setRoomScope] = useState<RoomScope>('room');
   // Room devices (RDT): one selected room and one bounded, session-only preview. Only approval writes device points.
   const [roomTemplateRoom, setRoomTemplateRoom] = useState<string | null>(null);
   const [roomTemplateKind, setRoomTemplateKind] = useState<RoomDeviceTemplateKind>('office');
@@ -443,6 +456,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [roomTemplateReplace, setRoomTemplateReplace] = useState(true);
   // LV containment check: a selected drawn tray segment. The bounded results exist only while this tool is active.
   const [containmentSegment, setContainmentSegment] = useState<string | null>(null);
+  // Check level: the line last clicked, and a counter that Check again bumps so the list is worked out afresh.
+  const [checkSel, setCheckSel] = useState<string | null>(null);
+  const [checkRun, setCheckRun] = useState(0);
   // Emergency (EM): the escape routes, points of emphasis and open-area rooms marked (metres), kept until Place or Cancel.
   const [em, setEm] = useState<{ routes: Pt[][]; points: { at: Pt; kind: EmphasisKind }[]; rooms: string[] }>({ routes: [], points: [], rooms: [] });
   const [emSet, setEmSet] = useState<EmSettings>(EM_START);
@@ -517,6 +533,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [edNote, setEdNote] = useState<{ id?: string; draft: SketchItem; ml?: Omit<SketchItem, 'id'> } | null>(null);
   /** The multileader tools' step (S12). */
   const [ml, setMl] = useState<MlState | null>(null);
+  /** Quick dimension (QDIM) and Adjust space (DIMSPACE): the step, and DIMSPACE's base dimension; QDIM's way of laying
+   * its row is kept for the next time. */
+  const [dq, setDq] = useState<{ step: 'pick' | 'where' | 'base' | 'gap'; base?: string } | null>(null);
+  const [qdMode, setQdMode] = useState<QdimMode>('continuous');
   const [mtAsk, setMtAsk] = useState<{ step: 'height' | 'just' | 'width' | 'ntwidth'; id?: string } | null>(null);
   const [mtSet, setMtSet] = useState<{ mm?: number; just?: NoteAttach }>({});
   /** DRAWORDER (S7): the order chosen before the objects (from the ribbon or the right-click menu), if any. */
@@ -730,6 +750,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     } else if (tool === 'mleaderalign') { setMl({ step: mls.length ? 'ref' : 'pick', mode: 'vertical' }); if (mls.length) cad.say('MLEADERALIGN  Select multileader to align to:'); }
     else if (tool === 'mleadercollect') { setMl({ step: mls.length > 1 ? 'where' : 'pick', mode: 'vertical' }); if (mls.length > 1) cad.say(ML_WHERE); }
     else setMl(null);
+    // QDIM with objects picked first asks at once where the row goes; DIMSPACE starts with its base dimension.
+    if (tool === 'qdim') { setDq({ step: qdPts.length > 1 ? 'where' : 'pick' }); if (qdPts.length > 1) cad.say(qdimWhere(qdMode)); }
+    else setDq(tool === 'dimspace' ? { step: 'base' } : null);
     // CROP with drawn items picked first: they are what is cut.
     if (tool === 'crop' && first) { const ids = picked.length ? picked.filter((k) => k.startsWith('sk:')).map((k) => k.slice(3)) : [cad.selected!.slice(3)]; setCrop({ step: 'outline', target: { items: ids, label: `${ids.length} drawn object${ids.length === 1 ? '' : 's'}` } }); cad.say(CROP_OUTLINE); }
     // SELECTSIMILAR with drawn objects picked first: they are the pattern. ZOOM needs the model view.
@@ -826,6 +849,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const pickedDw = useMemo(() => (picked.length ? picked.flatMap((k) => { const x = k.startsWith('dw:') ? dwObjects.current.get(k) : undefined; return x && x.file === view?.file ? [x.o] : []; })
     : result?.kind === 'object' ? [result.o] : []), [picked, result, view]);
   const pickedDwIds = useMemo(() => pickedDw.map((o) => o.id), [pickedDw]);
+  // What Quick dimension measures of the objects picked: drawn ones and those of the opened drawing.
+  const qdPts = useMemo(() => (tool === 'qdim' && view ? [...pickedSk.flatMap(qdimPointsOf), ...qdimPointsOfDrawing(pickedDw, view.segs)] : []), [tool, pickedSk, pickedDw, view]);
   const dwHighlight = useMemo(() => pickedDw.map((o): [number, number] => [o.seg_start, o.seg_end]), [pickedDw]);
   const pickedKeys = new Set([...pickedItems.map((d) => d.key), ...pickedSk.map((it) => `sk:${it.id}`), ...pickedDw.map((o) => `dw:${o.handle}`)]);
   const many = pickedItems.length + pickedSk.length > 1;
@@ -893,11 +918,12 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const elvItem = ELV_PALETTE.find((e) => e.id === cad.device);
   const elvSystem = elvSystemOf(elvItem?.kind.elv ?? 'smoke-detector');
   const fillItem = ELV_PALETTE.find((e) => e.id === cad.fillDevice) ?? ELV_PALETTE[0];
-  const fillRoom = tool === 'fill' && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
+  const fillRoomOf = tool === 'fill' && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor) : undefined;
+  const fillRoom = fillRoomOf?.id;
   const elv = useMemo(() => (floor && (cad.coverage || fillRoom) ? elvLayer(project, { building: floor.ref.building, level: floor.ref.level }, units.factor, {
     system: cad.coverage ? cad.coverageSystem : elvSystemOf(fillItem.kind.elv), coverage: cad.coverage, selected: null,
-    ...(fillRoom && cursor.at ? { preview: { type: fillItem.kind.elv, at: [cursor.at[0] * units.factor, cursor.at[1] * units.factor] as Pt } } : {})
-  }) : undefined), [project, floor?.key, cad.coverageSystem, cad.coverage, fillRoom, fillItem.id, units.factor]); // eslint-disable-line react-hooks/exhaustive-deps -- the preview follows the room under the pointer, not every move
+    ...(fillRoom && cursor.at ? { preview: { type: fillItem.kind.elv, at: [cursor.at[0] * units.factor, cursor.at[1] * units.factor] as Pt, ...(fillRoomOf && roomScope !== 'room' ? { rooms: roomsInScope(project, fillRoomOf, roomScope).rooms.map((r) => r.outline!) } : {}) } } : {})
+  }) : undefined), [project, floor?.key, cad.coverageSystem, cad.coverage, fillRoom, roomScope, fillItem.id, units.factor]); // eslint-disable-line react-hooks/exhaustive-deps -- the preview follows the room under the pointer, not every move
   const notCovered = elv ? elv.coverage.filter((c) => c.gaps.length).length : 0;
   const cableLabels = useMemo(() => Object.fromEntries(sketch.filter((it) => it.cable).map((it) => {
     const f = project.feeders.find((x) => x.id === it.cable!.feederId);
@@ -926,24 +952,61 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const luxHover = tool === 'lux' && !luxRoom && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
   const luxOf = tool === 'lux' ? buildingInfoOf(project).rooms.find((r) => r.id === (luxRoom ?? luxHover)) : undefined;
   const lit = useMemo(() => (luxOf ? lightingOf(project, luxOf, luxSet) : undefined), [project, luxOf?.id, luxSet]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
+  // All rooms like this for Light room: each room worked out for its own outline, its lights on one circuit.
+  const luxPlan = useMemo(() => (luxOf && roomScope !== 'room' ? planRoomLights(circuits, cad.feederId, roomsInScope(project, luxOf, roomScope).rooms, (room) => {
+    const r = lightingOf(project, room, room.id === luxOf.id ? luxSet : { ...luxSet, lux: undefined, ceil: undefined, wp: undefined });
+    return r.result.invalid || !r.result.count ? undefined : { points: r.result.points, lux: r.result.achievedLux };
+  }) : undefined), [project, luxOf?.id, luxSet, roomScope, circuits, cad.feederId]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
   // Room template: calculate only the selected service scope, one room, with hard point limits in both helpers.
   const roomTemplateOf = tool === 'roomtemplate' ? buildingInfoOf(project).rooms.find((r) => r.id === roomTemplateRoom) : undefined;
   const lvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'elv' ? proposeLvRoomTemplate(project, roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
   const elvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'lv' ? proposeElvRoomTemplate(roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
+  // All rooms like this for Room devices: each room's own proposal, shared out over the circuits.
+  const rdtSets = useMemo(() => {
+    if (!roomTemplateOf || roomScope === 'room') return undefined;
+    const lvOn = roomTemplateScope !== 'elv', elvOn = roomTemplateScope !== 'lv';
+    const rooms = roomsInScope(project, roomTemplateOf, roomScope).rooms;
+    return rooms.map((room) => {
+      try { return { room, lv: lvOn ? proposeLvRoomTemplate(project, room, roomTemplateKind) : undefined, elv: elvOn ? proposeElvRoomTemplate(room, roomTemplateKind) : undefined }; } catch { return { room }; }
+    });
+  }, [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope, roomScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
+  const rdtPlan = useMemo(() => (rdtSets ? planRoomSets(circuits, roomTemplateLighting, rdtSets.map((x) => x.room), (room) => {
+    const x = rdtSets.find((y) => y.room.id === room.id);
+    if (!x || (roomTemplateScope !== 'elv' && !x.lv) || (roomTemplateScope !== 'lv' && !x.elv)) return undefined;
+    return { lights: x.lv?.lights ?? [], sockets: x.lv?.sockets.length ?? 0, elv: x.elv ? x.elv.dataOutlets.length + x.elv.accessPoints.length + x.elv.smokeDetectors.length : 0, limited: !!x.lv?.limited || !!x.elv?.limited };
+  }, roomTemplateScope !== 'elv') : undefined), [rdtSets, circuits, roomTemplateLighting, roomTemplateScope]);
   const containmentCheck = useMemo(() => tool === 'containment'
     ? checkLvContainment(project, sketch)
     : { segments: [], truncated: false, checkedRoutes: 0, issues: 0 }, [tool, project, sketch]);
+  // Check level: worked out only while the tool runs, and again on Check again.
+  const levelCheck = useMemo(() => {
+    if (tool !== 'check' || !floor) return undefined;
+    const rooms = buildingInfoOf(project).rooms.filter((r) => r.buildingId === floor.ref.building && r.levelId === floor.ref.level && (r.outline?.length ?? 0) >= 3);
+    return checkLevel(project, floor.ref, {
+      rooms, placed,
+      lightNeed: (room) => { const r = lightingOf(project, room, luxSet); return r.result.invalid ? undefined : { needed: r.result.count, lux: r.input.targetLux }; },
+      coverage: coverageGaps(project, { building: floor.ref.building, level: floor.ref.level }).map((g) => ({ system: g.system, label: g.label, roomsNotCovered: g.roomsNotCovered }))
+    });
+  }, [tool, project, floor, placed, luxSet, checkRun]); // eslint-disable-line react-hooks/exhaustive-deps -- the list is rebuilt when asked
+  useEffect(() => {
+    if (tool !== 'check' || !floor) return;
+    if (levelCheck) cad.say(`CHK  ${floorLabel(project.building, floor)}: ${levelCheck.toLook ? `${levelCheck.toLook} to look at` : 'nothing to look at'} in ${levelCheck.rooms} room${levelCheck.rooms === 1 ? '' : 's'} — click a line to go there.`);
+  }, [tool, checkRun]); // eslint-disable-line react-hooks/exhaustive-deps -- said when the tool starts and on Check again
   const roomTemplateGhosts: CanvasDevice[] = tool !== 'roomtemplate' ? [] : (() => {
     const out: CanvasDevice[] = [];
     const add = (at: Pt[], key: string, symbol: { shape: string; text: string; plan?: string; tag?: string }, elv = false) => at.forEach(([x, y], i) => out.push({ key: `${key}${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: symbol.shape, text: symbol.text, ...(symbol.plan ? { plan: symbol.plan, tag: symbol.tag } : {}), label: '', elv, ghost: true }));
-    if (lvRoomTemplate) {
-      add(lvRoomTemplate.lights, 'rdtl', { shape: 'cross', text: '' });
-      add(lvRoomTemplate.sockets, 'rdts', LV_PALETTE.find((x) => x.id === 's13t')!.symbol);
-    }
-    if (elvRoomTemplate) {
-      add(elvRoomTemplate.dataOutlets, 'rdtd', ELV_PALETTE.find((x) => x.id === 'data-outlet')!.symbol, true);
-      add(elvRoomTemplate.accessPoints, 'rdta', ELV_PALETTE.find((x) => x.id === 'access-point')!.symbol, true);
-      add(elvRoomTemplate.smokeDetectors, 'rdtf', ELV_PALETTE.find((x) => x.id === 'smoke-detector')!.symbol, true);
+    const kept = rdtPlan && rdtSets ? rdtSets.filter((x) => rdtPlan.rows.find((r) => r.room.id === x.room.id && !r.why)) : undefined;
+    const sets = kept ? kept.map((x) => ({ key: x.room.id, lv: 'lv' in x ? x.lv : undefined, elv: 'elv' in x ? x.elv : undefined })) : [{ key: '', lv: lvRoomTemplate, elv: elvRoomTemplate }];
+    for (const { key, lv, elv } of sets) {
+      if (lv) {
+        add(lv.lights, `rdtl${key}`, { shape: 'cross', text: '' });
+        add(lv.sockets, `rdts${key}`, LV_PALETTE.find((x) => x.id === 's13t')!.symbol);
+      }
+      if (elv) {
+        add(elv.dataOutlets, `rdtd${key}`, ELV_PALETTE.find((x) => x.id === 'data-outlet')!.symbol, true);
+        add(elv.accessPoints, `rdta${key}`, ELV_PALETTE.find((x) => x.id === 'access-point')!.symbol, true);
+        add(elv.smokeDetectors, `rdtf${key}`, ELV_PALETTE.find((x) => x.id === 'smoke-detector')!.symbol, true);
+      }
     }
     return out;
   })();
@@ -964,7 +1027,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const emRoutes: SketchItem[] = tool !== 'em' ? [] : em.routes.map((r, i) => ({ id: `_em${i}`, layer: '', kind: 'pline', pts: r.map(([x, y]): Pt => [x / units.factor, y / units.factor]) }));
   const ghosts: CanvasDevice[] = [
     ...(elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true })),
-    ...(lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true })),
+    ...(luxPlan ? luxPlan.rows.filter((r) => r.feederId).flatMap((r) => r.points) : lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true })),
     ...roomTemplateGhosts,
     ...emGhosts,
     ...arlAt.map(([x, y], i) => ({ key: `arl${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: arlItem?.symbol.shape ?? 'cross', text: arlItem?.symbol.text ?? '', label: '', ghost: true }))
@@ -1971,6 +2034,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   function placeLux() {
     if (!floor || !luxOf || !lit) return;
     try {
+      if (luxPlan) {
+        const got = luxPlan.rows.filter((r) => r.feederId);
+        if (!got.length) { cad.say(`LUX  No room could be lit: ${luxPlan.rows[0]?.why ?? 'no room'}`); return; }
+        let next = project;
+        for (const row of got) next = placeRoomLights(next, floor.ref, row.room.id, row.feederId!, row.points, luxSet.replace, lit.luminaire).project;
+        const out = luxPlan.rows.length - got.length;
+        change(next, `${luxPlan.lights} light${luxPlan.lights === 1 ? '' : 's'} placed in ${got.length} room${got.length === 1 ? '' : 's'} on ${luxPlan.circuits.length} circuit${luxPlan.circuits.length === 1 ? '' : 's'}${out ? ` — ${out} room${out === 1 ? '' : 's'} left out` : ''} · ⌘Z to undo`);
+        setLuxRoom(null);
+        return;
+      }
       const r = placeRoomLights(project, floor.ref, luxOf.id, cad.feederId, lit.result.points, luxSet.replace, lit.luminaire);
       const f = project.feeders.find((x) => x.id === cad.feederId)!;
       change(r.project, `${r.ids.length} light${r.ids.length === 1 ? '' : 's'} placed in ${luxOf.name} on ${circuitLabel(project, f).split(' · ')[0]} — ${Math.round(lit.result.achievedLux)} lx${r.removed ? ` (${r.removed} taken off first)` : ''} · ⌘Z to undo`);
@@ -1980,6 +2053,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Room devices: approves the bounded LV and/or ELV preview in one undoable project change. */
   function approveRoomTemplate() {
     if (!floor || !roomTemplateOf) return;
+    if (rdtPlan && rdtSets) {
+      const got = rdtPlan.rows.filter((r) => !r.why);
+      if (!got.length) { cad.say(`RDT  No room could be done: ${rdtPlan.rows[0]?.why ?? 'no room'}`); return; }
+      try {
+        let next = project, removed = 0;
+        for (const row of got) {
+          const x = rdtSets.find((y) => y.room.id === row.room.id)!;
+          if (x.lv) { const r = approveLvRoomTemplate(next, floor.ref, x.lv, row.feederId ?? roomTemplateLighting, roomTemplatePower, roomTemplateReplace); next = r.project; removed += r.removed; }
+          if (x.elv) { const r = approveElvRoomTemplate(next, row.room, x.elv, roomTemplateReplace); next = r.project; removed += r.removed; }
+        }
+        const out = rdtPlan.rows.length - got.length;
+        change(next, `RDT  ${rdtPlan.devices} device${rdtPlan.devices === 1 ? '' : 's'} approved in ${got.length} room${got.length === 1 ? '' : 's'}${out ? ` — ${out} room${out === 1 ? '' : 's'} left out` : ''}${removed ? ` · ${removed} replaced` : ''} · ⌘Z to undo`);
+        setRoomTemplateRoom(null);
+      } catch (e) { cad.say(`RDT  ${e instanceof Error ? e.message : String(e)}`); }
+      return;
+    }
     try {
       let next = project, placed = 0, removed = 0, lvPlaced = 0, elvPlaced = 0;
       if (roomTemplateScope !== 'elv') {
@@ -2075,7 +2164,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const items = add || tool !== 'none' ? [...pickedItems, ...found.filter((d) => !pickedKeys.has(d.key))] : found;
     const sks = add || tool !== 'none' ? [...pickedSk, ...foundSk.filter((it) => !pickedKeys.has(`sk:${it.id}`))] : foundSk;
     // The drawing's own objects too (the engine's window pick), with no tool running or while a tool asks for objects.
-    const asking = tool === 'none' || (PICK_FIRST.includes(tool) && edPhase === 'pick');
+    const asking = tool === 'none' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || (tool === 'qdim' && dq?.step === 'pick');
     const inDw = asking && view ? await view.pickWindow(a, b, crossing, pickOn) : { objects: [] as CadObject[], truncated: false };
     const dws = add || tool !== 'none' ? [...pickedDw, ...inDw.objects.filter((o) => !pickedKeys.has(`dw:${o.handle}`))] : inDw.objects;
     pick(tool === 'none' ? items : [], sks, dws);
@@ -2116,6 +2205,83 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const sk = hitAt(pickable, at, pickR * pixel);
     if (!sk || sk.kind !== 'mleader') { cad.say(`${name}  Click a multileader (a drawn one, not the architect's drawing):`); return undefined; }
     return sk;
+  }
+  /** Quick dimension's row through `at` over the points picked, in the current dimension style: baseline ones step
+   * out as Baseline's do. Points closer than half a millimetre along the line are one. */
+  function qdimRow(at: Pt): Omit<SketchItem, 'id'>[] {
+    const style = newDim(), h = style?.h ?? textH * 0.8;
+    const { dir, dims } = quickDims(qdPts, at, qdMode, 0.0005 / units.factor, Math.max(3.75 * unitsPerPaperMm(anno, units.factor), 1.5 * h));
+    return dims.map((pts) => ({ kind: 'dim', layer: dimLayerNow, pts, dir, ...(style ?? { text: toM(dimMeasure({ pts, dir })).toFixed(2), h }) }));
+  }
+  /** QDIM: the row drawn where clicked, one undo step. */
+  function qdimPlace(at: Pt) {
+    if (!view) return;
+    const row = qdimRow(at);
+    if (!row.length) { cad.say('QDIM  What is picked lies at one place along that line: nothing to dimension.'); return; }
+    if (row.length > QDIM_MAX) { cad.say(`QDIM  ${row.length} dimensions is more than ${QDIM_MAX}: pick fewer objects.`); return; }
+    change(row.reduce((q, x) => addSketch(q, view.file, x).project, project), `QDIM  ${row.length} dimension${row.length === 1 ? '' : 's'}, ${qdMode} · ⌘Z to undo`);
+    pick([], []); cad.setTool('none');
+  }
+  /** DIMSPACE: the dimensions picked spaced `gap` (drawing units) apart from the base, one undo step. */
+  function dimspaceApply(gap: number) {
+    const base = sketch.find((x) => x.id === dq?.base);
+    if (!base) { cad.setTool('none'); return; }
+    const r = spacedDims(base, pickedSk, gap), left = r.skipped ? `; ${r.skipped} at another angle, or radial, left as ${r.skipped === 1 ? 'it was' : 'they were'}` : '';
+    if (!r.spaced) cad.say(`DIMSPACE  No dimension picked lies parallel to the base${left}.`);
+    else if (!r.moved.length) cad.say(`DIMSPACE  The dimensions are spaced so already${left}.`);
+    else change(r.moved.reduce((q, x) => updateSketch(q, fileOf(), x), project), `DIMSPACE  ${r.spaced} dimension${r.spaced === 1 ? '' : 's'} ${gap ? `spaced ${m(toM(gap))} apart` : 'lined up with the base'}${left} · ⌘Z to undo`);
+    pick([], []); cad.setTool('none');
+  }
+  /** A click with Quick dimension or Adjust space (Annotate → Dimensions). A second click on an object picked leaves it out. */
+  async function dqClick(at: Pt, pixel: number) {
+    if (!dq) return;
+    const sk = hitAt(pickable, at, pickR * pixel);
+    if (tool === 'qdim') {
+      if (dq.step === 'where') { qdimPlace(at); return; }
+      // A drawn object, else one of the opened drawing.
+      if (sk) { const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk]; pick([], sks, pickedDw); cad.say(`QDIM  ${picks(sks.length + pickedDw.length)} — Enter when done`); return; }
+      const o = view ? await view.pick(at[0], at[1], pickR * pixel, pickOn) : null;
+      if (!o) { cad.say(`QDIM  Nothing there. ${PROMPT.qdim.slice(6)}`); return; }
+      const dws = pickedKeys.has(`dw:${o.handle}`) ? pickedDw.filter((x) => x.handle !== o.handle) : [...pickedDw, o];
+      pick([], pickedSk, dws); cad.say(`QDIM  ${picks(pickedSk.length + dws.length)} — Enter when done`); return;
+    }
+    if (dq.step === 'base') {
+      if (!sk || sk.kind !== 'dim' || sk.dimKind || sk.pts.length < 3) { cad.say('DIMSPACE  Click a linear or aligned dimension (a drawn one). Select base dimension:'); return; }
+      pick([], []); setDq({ step: 'pick', base: sk.id }); cad.say('DIMSPACE  Select dimensions to space:'); return;
+    }
+    if (dq.step === 'pick') {
+      if (sk?.id === dq.base) { cad.say('DIMSPACE  That is the base dimension: pick the ones to space from it.'); return; }
+      if (!sk || sk.kind !== 'dim') { cad.say('DIMSPACE  Click a dimension. Select dimensions to space — Enter when done:'); return; }
+      const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
+      pick([], sks); cad.say(`DIMSPACE  ${picks(sks.length)} — Enter when done`); return;
+    }
+    cad.say(DIMSPACE_GAP);
+  }
+  /** Typed input at a Quick dimension or Adjust space prompt; false lets a typed point through (QDIM's row). */
+  function dqTyped(c: string): boolean {
+    if (!dq) return false;
+    if (tool === 'qdim' && dq.step === 'pick') {
+      if (c) return false;
+      if (!pickedSk.length && !pickedDw.length) { cad.setTool('none'); return true; }
+      if (qdPts.length < 2) { cad.say('QDIM  Nothing to measure in what is picked: pick lines, polylines, arcs or circles.'); return true; }
+      setDq({ step: 'where' }); cad.say(qdimWhere(qdMode)); return true;
+    }
+    if (tool === 'qdim') {
+      const mode: QdimMode | undefined = c === 'C' || c === 'CONTINUOUS' ? 'continuous' : c === 'B' || c === 'BASELINE' ? 'baseline' : undefined;
+      if (mode) { setQdMode(mode); cad.say(qdimWhere(mode)); return true; }
+      if (!c) { cad.say(qdimWhere(qdMode)); return true; }
+      return false;
+    }
+    if (dq.step === 'base') { if (c) { cad.say(`DIMSPACE  Click the base dimension. ${PROMPT.dimspace.slice(10)}`); return true; } cad.setTool('none'); return true; }
+    if (dq.step === 'pick') {
+      if (c) { cad.say('DIMSPACE  Click the dimensions to space, then Enter.'); return true; }
+      if (!pickedSk.some((x) => x.kind === 'dim' && x.id !== dq.base)) { cad.setTool('none'); return true; }
+      setDq({ ...dq, step: 'gap' }); cad.say(DIMSPACE_GAP); return true;
+    }
+    const base = sketch.find((x) => x.id === dq.base);
+    if (!c || c === 'A' || c === 'AUTO') { dimspaceApply(base ? autoDimGap(base, textH * 0.8) : 0); return true; }
+    if (!isNumber(c) || Number(c) < 0) { cad.say(`DIMSPACE  "${c}" is not a gap: type it in metres, or Enter for Auto. ${DIMSPACE_GAP.slice(10)}`); return true; }
+    dimspaceApply(Number(c) / units.factor); return true;
   }
   /** A click with a multileader tool (S12 of the 2D gap plan). */
   function mlClick(at: Pt, pixel: number) {
@@ -3498,6 +3664,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(updateSketch(project, fileOf(), matchedProps(from, sk)), `MATCHPROP  Properties copied to the ${kindOf(sk).toLowerCase()} · ⌘Z to undo`);
       return;
     }
+    if (tool === 'qdim' || tool === 'dimspace') { await dqClick(at, pixel); return; }
     if (ML_TOOLS.includes(tool)) { mlClick(at, pixel); return; }
     if (EDIT_TOOLS.includes(tool)) { editClick(at, pixel, shiftKey); return; }
     if (tool === 'copy' && pickedDw.length) {
@@ -3858,7 +4025,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       wireOne(at, pixel);
     } else if (tool === 'fill') {
       if (!floor) { cad.say('FILL  Add the building and its levels in Building information first.'); return; }
-      const r = fillAt(project, { building: floor.ref.building, level: floor.ref.level }, fillItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
+      const level = { building: floor.ref.building, level: floor.ref.level }, here = roomAtPointOf(project, floor, at, units.factor);
+      if (here && roomScope !== 'room') {
+        const { rooms, left } = roomsInScope(project, here, roomScope);
+        const r = fillRooms(project, level, fillItem.kind.elv, rooms.map((x) => ({ name: x.name, outline: x.outline! })));
+        const message = left ? r.message.replace(' · ⌘Z to undo', ` — ${left} more over ${ROOM_SCOPE_MAX} rooms a run · ⌘Z to undo`) : r.message;
+        if (r.next) change(r.next, message); else cad.say(`FILL  ${message}`);
+        return;
+      }
+      const r = fillAt(project, level, fillItem.kind.elv, [at[0] * units.factor, at[1] * units.factor]);
       if (r.next) change(r.next, r.message); else cad.say(`FILL  ${r.message}`);
     } else if (tool === 'lux') {
       if (!floor) { cad.say('LUX  Add the building and its levels in Building information first.'); return; }
@@ -4442,6 +4617,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(withDimLayer(project, view.file, row?.name ?? ANNO_LAYER), `DIMLAYER  New dimensions go on ${row?.name ?? ANNO_LAYER} · ⌘Z to undo`);
       return;
     }
+    if ((tool === 'qdim' || tool === 'dimspace') && dqTyped(c)) return;
     if (ML_TOOLS.includes(tool) && mlTyped(c)) return;
     if (tool === 'revcloud' && cloudAsk) {
       if (!c) { setCloudAsk(false); cad.say(PROMPT.revcloud); return; }
@@ -4510,7 +4686,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     // A number typed with Scale (before its base point) sets the factor.
     if (tool === 'scale' && isNumber(c) && !c.startsWith('-')) { const k = String(Number(c)); setEdSet({ ...edSet, factor: k }); cad.say(`SCALE  Factor ${k}`); return; }
-    if (DRAW_TOOLS.includes(tool) || tool === 'copybase' || tool === 'paste' || tool === 'dist' || tool === 'area' || tool === 'trace' || tool === 'zoomwin' || tool === 'dimrad' || tool === 'dimdia' || tool === 'dimang' || tool === 'mleader' || (tool === 'mleaderadd' && !!ml?.target) || (tool === 'mleaderalign' && ml?.step === 'dir') || (tool === 'mleadercollect' && ml?.step === 'where') || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref') || (tool === 'align' && edPhase === 'points' && edAsk !== 'ascale')
+    if (DRAW_TOOLS.includes(tool) || tool === 'copybase' || tool === 'paste' || tool === 'dist' || tool === 'area' || tool === 'trace' || tool === 'zoomwin' || tool === 'dimrad' || tool === 'dimdia' || tool === 'dimang' || tool === 'mleader' || (tool === 'mleaderadd' && !!ml?.target) || (tool === 'mleaderalign' && ml?.step === 'dir') || (tool === 'mleadercollect' && ml?.step === 'where') || (tool === 'qdim' && dq?.step === 'where') || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref') || (tool === 'align' && edPhase === 'points' && edAsk !== 'ascale')
       // Mirror's line, Scale's base point and Stretch's two points (after the window), as typed coordinates too.
       || (tool === 'mirror' && edPhase === 'points' && edAsk !== 'erase') || (tool === 'scale' && edPhase === 'points' && edAsk !== 'factor') || (tool === 'stretch' && !!stretchBox)) {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
@@ -5037,6 +5213,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'dimlin' && points.length === 1) return [{ ...base, kind: 'line', pts: [points[0], cur] }];
     if (tool === 'dimlin' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], dir: linearDir(points[0], points[1], cur), ...(look ? { look } : {}) }]; }
     if ((tool === 'dimcont' || tool === 'dimbase') && lastDim) { const n = chainDim(lastDim, cur); return n ? [{ ...n, id: '_' }] : []; }
+    if (tool === 'qdim' && dq?.step === 'where') return qdimRow(cur).slice(0, QDIM_MAX).map((x, i) => ({ ...x, id: `_${i}` }) as SketchItem);
     if (shadow) return shadow.items;
     if ((tool === 'move' || tool === 'copy') && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'paste' && pasting && view) return pastedItems(pasting, view.file, unitCode, cur).items.slice(0, SHADOW_MAX).map((x, i) => ({ ...x, id: `_${i}` }) as SketchItem);
@@ -5106,7 +5283,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? []), ...(tool === 'containment' && containmentSegment ? [containmentSegment] : [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={cmpRefs} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={cmpRefs} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || ((tool === 'qdim' || tool === 'dimspace') && dq?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
                 setGrip(null);
@@ -5253,6 +5430,30 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             <ContainmentSegmentPanel result={containmentCheck} selectedId={containmentSegment} onSelect={(id) => { setContainmentSegment(id); cad.say(`CONTAINMENTCHECK  ${containmentCheck.segments.find((segment) => segment.id === id)?.name ?? id} selected.`); }}
               onApply={applyContainmentSize} onOpenAssignments={() => { onShow?.({ to: 'cable-tray' }); cad.say('CONTAINMENTCHECK  Cable-tray assignments opened.'); }} />
           )}
+          {tool === 'check' && view && !floor && (
+            <>
+              <h4>Check level</h4>
+              <div className="cad-devform"><span className="m">Add the building and its levels in Building information first.</span></div>
+            </>
+          )}
+          {tool === 'check' && view && floor && levelCheck && (
+            <LevelCheckPanel levelName={floorLabel(project.building, floor)} check={levelCheck} selected={checkSel}
+              onShow={(f: LevelFinding) => {
+                setCheckSel(f.text);
+                setShowTarget({ level: floor.ref, file: view.file, kind: 'devices', keys: f.keys ?? [], itemIds: [], box: f.box, label: f.text });
+                cad.say(`CHK  ${f.text}`);
+              }}
+              onFix={(f: LevelFinding) => {
+                if (f.fix?.tool === 'lux') {
+                  const room = buildingInfoOf(project).rooms.find((r) => r.id === (f.fix as { roomId: string }).roomId);
+                  if (!room) return;
+                  luxNext.current = room.id; cad.setTool('lux'); setTimeout(() => cad.say(`LUX  ${room.name}: set the luminaire and circuit, then Place.`));
+                } else if (f.fix?.tool === 'coverage') {
+                  cad.setCoverageSystem(f.fix.system as Parameters<typeof cad.setCoverageSystem>[0]); cad.setCoverage(true);
+                }
+              }}
+              onAgain={() => setCheckRun((n) => n + 1)} />
+          )}
           {(tool === 'cable' || tool === 'link') && view && (
             <>
               <h4>Cable route</h4>
@@ -5288,13 +5489,14 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             </>
           )}
           {tool === 'lux' && view && (
-            <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
+            <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} scope={roomScope} onScope={setRoomScope} counts={luxOf ? scopeCounts(project, luxOf) : undefined} plan={luxPlan} levelName={floor ? floorLabel(project.building, floor) : undefined} typeLabel={luxOf ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === luxOf.type)?.label : undefined} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
           )}
           {tool === 'roomtemplate' && view && (
             <RoomDeviceTemplatePanel project={project} room={roomTemplateOf} kind={roomTemplateKind} onKind={setRoomTemplateKind} scope={roomTemplateScope} onScope={setRoomTemplateScope}
               lv={lvRoomTemplate} elv={elvRoomTemplate} circuits={circuits} lightingFeederId={roomTemplateLighting} onLightingFeeder={setRoomTemplateLighting}
               powerFeederId={roomTemplatePower} onPowerFeeder={setRoomTemplatePower} replace={roomTemplateReplace} onReplace={setRoomTemplateReplace}
-              onApprove={approveRoomTemplate} onCancel={() => { setRoomTemplateRoom(null); cad.say(`Command: ${PROMPT.roomtemplate}`); }} />
+              onApprove={approveRoomTemplate} roomScope={roomScope} onRoomScope={setRoomScope} counts={roomTemplateOf ? scopeCounts(project, roomTemplateOf) : undefined} plan={rdtPlan} levelName={floor ? floorLabel(project.building, floor) : undefined} typeLabel={roomTemplateOf ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === roomTemplateOf.type)?.label : undefined}
+              onCancel={() => { setRoomTemplateRoom(null); cad.say(`Command: ${PROMPT.roomtemplate}`); }} />
           )}
           {tool === 'arl' && view && (
             <ArrayPanel project={project} settings={arlSet} onSettings={setArlSet} palette={palette} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId}
@@ -5305,9 +5507,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? (TEXT_TOOLS.includes(tool) ? 'Picked — type the value on the command line' : 'Objects picked — now the points') : undefined}
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
-          {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimal' || tool === 'dimcont' || tool === 'dimbase' || tool === 'leader' || tool === 'mleader' || tool === 'mleaderadd' || tool === 'mleaderremove' || tool === 'mleaderalign' || tool === 'mleadercollect' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
+          {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimal' || tool === 'dimcont' || tool === 'dimbase' || tool === 'qdim' || tool === 'dimspace' || tool === 'leader' || tool === 'mleader' || tool === 'mleaderadd' || tool === 'mleaderremove' || tool === 'mleaderalign' || tool === 'mleadercollect' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
-              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Click a line, arc or circle, or two points; then where the dimension goes. An arc gives its radius, a circle its diameter; two points or a line give a horizontal or vertical one by where you drag, aligned beside a sloping one.' }, dimal: { title: 'Aligned dimension', cmd: 'DAL', help: 'Two points, then where the dimension line goes: along the two points.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, mleader: { title: 'Multileader', cmd: 'MLD', help: 'Click the arrowhead, then the landing; type the words in the note editor (several leaders, one note).' }, mleaderadd: { title: 'Add leader', cmd: 'MLEADERADD', help: 'Pick a multileader, then click each arrowhead to add; Enter ends.' }, mleaderremove: { title: 'Remove leader', cmd: 'MLEADERREMOVE', help: 'Pick a multileader, then click the leader to remove; one always stays.' }, mleaderalign: { title: 'Align multileaders', cmd: 'MLA', help: 'Pick the multileaders, Enter, the one to align to, then a direction (Enter: vertical).' }, mleadercollect: { title: 'Collect multileaders', cmd: 'MLC', help: 'Pick two or more multileaders, Enter, then click where the collected one goes.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
+              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Click a line, arc or circle, or two points; then where the dimension goes. An arc gives its radius, a circle its diameter; two points or a line give a horizontal or vertical one by where you drag, aligned beside a sloping one.' }, dimal: { title: 'Aligned dimension', cmd: 'DAL', help: 'Two points, then where the dimension line goes: along the two points.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, qdim: { title: 'Quick dimension', cmd: 'QDIM', help: 'Pick lines, polylines, arcs and circles (a window too), Enter, then click where the row goes: above or below them it is horizontal, beside them vertical. C or B first: Continuous or Baseline.' }, dimspace: { title: 'Adjust space', cmd: 'DIMSPACE', help: 'Click the base dimension, then the ones to space (a window too), Enter, then the gap in metres: Enter for Auto (twice the text), 0 lines them up with the base.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, mleader: { title: 'Multileader', cmd: 'MLD', help: 'Click the arrowhead, then the landing; type the words in the note editor (several leaders, one note).' }, mleaderadd: { title: 'Add leader', cmd: 'MLEADERADD', help: 'Pick a multileader, then click each arrowhead to add; Enter ends.' }, mleaderremove: { title: 'Remove leader', cmd: 'MLEADERREMOVE', help: 'Pick a multileader, then click the leader to remove; one always stays.' }, mleaderalign: { title: 'Align multileaders', cmd: 'MLA', help: 'Pick the multileaders, Enter, the one to align to, then a direction (Enter: vertical).' }, mleadercollect: { title: 'Collect multileaders', cmd: 'MLC', help: 'Pick two or more multileaders, Enter, then click where the collected one goes.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
           )}
           {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
           {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
@@ -5334,6 +5536,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               <div className="cad-devform">
                 {floors.length > 0 && (
                   <label>This drawing shows<select aria-label="Level of this drawing" value={floor?.key} onChange={(e) => { const f = floors.find((x) => x.key === e.target.value); if (f && view) setPlanLevel(project, view.file, f, change, view.info.units); }}>{floors.map((f) => <option key={f.key} value={f.key}>{floorLabel(project.building, f)}</option>)}</select></label>
+                )}
+                {tool === 'fill' && (
+                  <div className="cad-scope-wrap"><span>Rooms</span><RoomScopeButtons scope={roomScope} onScope={setRoomScope} counts={fillRoomOf ? scopeCounts(project, fillRoomOf) : undefined} /></div>
                 )}
                 {('lv' in item.kind || ('acc' in item.kind && item.kind.circuit)) && (
                   <div className="cad-cir-wrap"><span>Circuit</span><CircuitPicker project={project} circuits={circuits} value={cad.feederId} onChange={cad.setFeederId} placing={devType} level={floor?.ref} /></div>

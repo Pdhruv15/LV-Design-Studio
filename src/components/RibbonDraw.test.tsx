@@ -90,7 +90,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
     expect(group('Annotate')).toBeNull(); // the LVCAD row had grown wider than a laptop's window
     pick('Annotate');
-    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Update', 'Dimension layer', 'Linear', 'Continue', 'Dimension styles'],
+    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Adjust space', 'Dimension layer', 'Update', 'Linear', 'Quick', 'Continue', 'Dimension styles'],
       ['Multileader', 'Multileader style', 'Add leader', 'Align', 'Room tag', 'Tag all rooms', 'Keynote'], ['Revision cloud', 'North arrow']]);
     expect(document.querySelector('.ribbon')!.className).toContain('small-named'); // named beside their icons, as on LVCAD
     const look = (subTabs: string[]) => {
@@ -720,9 +720,17 @@ describe('Design CAD ribbon: Devices and Level', () => {
     show();
     pick(ELEC);
     expect(tools('Devices')).toEqual(['Add device', 'Fill room', 'Light room', 'Room devices', 'Emergency']);
-    expect(tools('Level')).toEqual(['Coverage', 'Copy to level']);
+    expect(tools('Level')).toEqual(['Check level', 'Coverage', 'Copy to level']);
     for (const name of ['Room devices', 'Emergency', 'Coverage', 'Copy to level']) expect(tool(name).querySelector('span')?.textContent).toBe(name);
     expect(group('Rooms').querySelector('button[aria-label="Trace"] span')).toBeNull(); // a small tool of another panel stays icon only
+  });
+
+  it('starts Check level from the Level panel', () => {
+    const onTool = vi.fn();
+    show({ onTool });
+    pick(ELEC);
+    click(tool('Check level'));
+    expect(onTool).toHaveBeenCalledWith('check');
   });
 
   it("chooses Fill room's device on its arrow and starts FILL from the main button", () => {

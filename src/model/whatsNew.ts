@@ -18,10 +18,47 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.304', date: '2026-11-25',
+    version: '2.312', date: '2026-11-26',
     items: [
       { title: 'Generator in parallel with the supply', text: 'A board with a standby generator has a new tick box, Runs in parallel with the supply. Tick it for a set that is synchronised with the supply: its fault current then adds to the supply\'s at that board, and reaches the boards above and below through the cables. Left unticked (a set behind a changeover) nothing changes.' },
       { title: 'Motor contribution to fault levels', text: 'Project settings has a new switch, Fault levels: include the contribution of running motors. With it on, each motor adds 5 × its rated current, behind its own cable, to the fault level at its board and, through the cables, at the other boards. Motors on a variable speed drive are left out. It is off unless you turn it on, so existing projects keep their numbers. Both additions show as rows in the per-unit table of the short circuit report.' }
+    ]
+  },
+  {
+    version: '2.309', date: '2026-11-25',
+    items: [
+      { title: 'Room devices: all rooms like this', text: 'Room devices now has Rooms too: This room, Same type, Whole level. One approval places the template in every room of the choice: each room\'s lights on one lighting circuit (going on to the next with room), its twin sockets on the power circuit, and the ELV devices. Rooms that cannot be done are listed and left out. One undo step; up to 40 rooms and 400 devices a run.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.308', date: '2026-11-25',
+    items: [
+      { title: 'Fill room and Light room: all rooms like this', text: "Both tools now have Rooms: This room, Same type, Whole level. Fill room then places the ELV device in every room of that type on the level, or in every room, with one click; Light room works out each room for its own outline and puts each room's lights on one circuit, going on to the next lighting circuit with room when one is full. Rooms that fit on no circuit are listed and left out. One undo step; up to 40 rooms and 400 ELV devices a run.", action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.307', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Check level', text: 'Level → Check level (CHK) lists what to look at on the level showing: rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the most the Rules sheet allows, devices on a removed circuit or outside every room, ELV coverage gaps by system and boards not yet on the plan, with the counts by type. Click a line to go there; some lines open Light room or Coverage. It is worked out when you ask, and Check again repeats it.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.305', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Quick dimension', text: 'Annotate → Dimensions → Quick (QDIM): pick lines, polylines, arcs and circles, drawn or of the opened drawing (a window too), press Enter, then click where the row goes. It draws one dimension between each pair of points in one go: horizontal above or below them, vertical beside them. Type C or B first for Continuous (a chain) or Baseline (each from the first); the choice is kept.', action: 'cad' },
+      { title: 'Dimensions: Adjust space', text: 'Adjust space (DIMSPACE, beside the style list): click the base dimension, then the ones to space, Enter, then the gap in metres. Enter alone spaces them twice the text apart; 0 lines them up with the base. Dimensions in one chain stay in one row. Update has moved beside the layer list.', action: 'cad' }
+    ]
+  },
+  {
+    version: '2.304', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: one ELCB at the incomer, or an RCBO on every circuit', text: 'Re-group all ELCBs now also offers two whole-board schemes. One ELCB at the incomer covers every circuit of the DB, ways added later too, rated at least as the incomer; it is time-delayed (S-type) when 30 mA RCBOs sit below it, which you can change in its dialog. RCBO on every circuit gives each circuit an RCBO, and new circuits get one too until you choose a New ELCBs size. No circuit moves in either scheme.' }
+    ]
+  },
+  {
+    version: '2.303', date: '2026-11-25',
+    items: [
+      { title: 'Load schedule: RCD type AC / A / F / B', text: 'Every ELCB and RCBO now has an RCD type. Auto picks Type B when a circuit\'s remarks name an EV charger, a 3-phase drive or PV, Type F for a 1-phase drive, else Type A. Choose a type for the whole DB in the board bar (RCD type), or for one ELCB or RCBO in its dialog. The schedule, PDF, Excel and BOQ show it only when it is not Type A.' }
     ]
   },
   {

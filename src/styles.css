@@ -2535,6 +2535,31 @@ input.cad-dlg-ali{width:64px}
 .cad-cir-row.full .cad-cir-bar b{background:var(--warn)}
 .cad-cir-row.next .w{color:var(--acc)}
 .cad-cir-none{padding:4px;color:var(--mut);font-size:var(--fs-xs)}
+/* Check level's list: the counts, the findings by group (a line goes to its place; some open the tool that fixes them). */
+.cad-chk{display:grid;gap:var(--space-2);padding:0 var(--space-3) var(--space-2);font-size:var(--fs-sm)}
+.cad-chk-counts{color:var(--tx)}
+.cad-chk-group{display:grid;gap:1px}
+.cad-chk-h{display:flex;padding:2px 0;color:var(--mut);font-size:10px;letter-spacing:.04em;text-transform:uppercase}
+.cad-chk-h span{margin-left:auto;letter-spacing:0}
+.cad-chk-row{display:flex;align-items:flex-start;gap:var(--space-2);border-left:2px solid transparent;border-radius:3px}
+.cad-chk-row.on{background:var(--p2);border-left-color:var(--acc)}
+.cad-chk-line{display:flex;align-items:flex-start;gap:6px;flex:1;min-width:0;padding:2px 4px;background:none;border:0;color:var(--tx);font-size:var(--fs-sm);line-height:1.3;text-align:left}
+.cad-chk-line:hover:not(:disabled){background:var(--p2)}
+.cad-chk-line:disabled{cursor:default}
+.cad-chk-line svg{flex:none;margin-top:2px;color:var(--warn)}
+.cad-chk-row.ok .cad-chk-line{color:var(--mut)}
+.cad-chk-row.ok .cad-chk-line svg{color:var(--ok)}
+.cad-chk-fix{flex:none;padding:2px 0;background:none;border:0;color:var(--acc);font-size:var(--fs-xs);white-space:nowrap}
+.cad-chk-foot{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-1)}
+.cad-chk-foot .m{flex:1}
+.cad-chk .m{color:var(--mut);font-size:var(--fs-xs)}
+/* All rooms like this: this room, the rooms of its type, or the whole level. */
+.cad-scope-wrap{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
+.cad-scope{display:flex}
+.cad-scope button{flex:1;min-height:24px;padding:0 4px;margin-left:-1px;background:var(--p2);border:1px solid var(--line);color:var(--tx);font-size:var(--fs-xs);white-space:nowrap}
+.cad-scope button:first-child{margin-left:0;border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.cad-scope button:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.cad-scope button[aria-checked=true]{position:relative;z-index:1;border-color:var(--acc);color:var(--acc)}
 /* Design CAD colour dialog: compact index colours 1–255 and true colour, portalled outside the ribbon. */
 .cad-colour{position:relative;display:inline-block}
 .cad-colour-btn{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);padding:1px 6px;min-height:20px;border:1px solid var(--field-line);border-radius:3px;background:var(--p2);color:var(--tx);cursor:pointer;white-space:nowrap}

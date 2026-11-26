@@ -223,6 +223,67 @@ describe('Add → ELCB / RCD', () => {
     expect(items().map((b) => b.textContent)).toEqual(expect.arrayContaining(['Edit RCD-1…', 'Remove RCD-1']));
   });
 
+  it('chooses the RCD type for the DB in the board bar, and for one ELCB in its dialog', () => {
+    mount();
+    const sel = [...document.querySelectorAll<HTMLSelectElement>('.ls-head select')].find((x) => x.closest('label')!.textContent!.startsWith('RCD type'))!;
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['Auto (A; B for EV, drives, PV)', 'All Type AC (plain AC loads only)', 'All Type A (general circuits)', 'All Type F (1-phase drives, inverter units)', 'All Type B (EV chargers, 3-phase drives, PV)']);
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(sel, 'F');
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(board().rcdType).toBe('F');
+    expect(elcbGroups(latest, board()).every((g) => g.rcdType === 'F')).toBe(true);
+    act(() => document.querySelector<HTMLTableCellElement>('table.ls td.elcb[rowspan]')!.click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.menu-pop[role="menu"] button')].find((x) => x.textContent === 'Edit ELCB-1…')!.click());
+    const dlg = document.querySelector('.elcb-dialog')!;
+    const type = [...dlg.querySelectorAll('label')].find((l) => l.textContent!.startsWith('RCD type'))!.querySelector('select')!;
+    expect(type.options[0].textContent).toBe("Auto — Type F (the DB's choice)");
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(type, 'B');
+      type.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(elcbGroups(latest, board())[0]).toMatchObject({ rcdType: 'B' });
+    expect(elcbGroups(latest, board())[0].label).toMatch(/Type B$/);
+  });
+
+  it('Re-group offers one ELCB at the incomer, edited with S-type and never resized, and RCBO on every circuit', () => {
+    const pick = (dlg: Element, text: string) => act(() => [...dlg.querySelectorAll('label')].find((l) => l.textContent!.includes(text))!.querySelector('input')!.click());
+    mount();
+    openMenu();
+    act(() => item('Re-group all ELCBs…').click());
+    let dlg = document.querySelector('.elcb-dialog')!;
+    expect([...dlg.querySelectorAll('fieldset label')].map((l) => l.textContent!.trim())).toEqual(['ELCBs of 3 circuits (1 way)', 'ELCBs of 6 circuits (2 ways)', 'ELCBs of 9 circuits (3 ways)', 'ELCBs of 12 circuits (4 ways)', 'One ELCB at the incomer (S-type when 30 mA RCBOs sit below it)', 'RCBO on every circuit (new circuits too)', 'No ELCB']);
+    pick(dlg, 'One ELCB at the incomer');
+    expect(dlg.textContent).toMatch(/After: ELCB-1 \d+ A \d+ mA 4P.* at the incomer over every circuit\./);
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(board().elcbs).toEqual([expect.objectContaining({ incomer: true })]);
+    expect(status).toHaveBeenLastCalledWith(`${BOARD}: ELCBs re-grouped: one ELCB at the incomer`);
+    act(() => document.querySelector<HTMLTableCellElement>('table.ls td.elcb[rowspan]')!.click());
+    const pop = document.querySelector('.menu-pop[role="menu"]')!;
+    expect([...pop.querySelectorAll('button')].some((b) => /circuits$/.test(b.textContent!))).toBe(false);
+    act(() => [...pop.querySelectorAll('button')].find((x) => x.textContent === 'Edit ELCB-1…')!.click());
+    dlg = document.querySelector('.elcb-dialog')!;
+    expect(dlg.querySelector('h3')!.textContent).toBe(`ELCB-1 at the incomer — ${BOARD}`);
+    expect(dlg.querySelector('input[data-field="from"]')).toBeNull();
+    const s = [...dlg.querySelectorAll('label')].find((l) => l.textContent!.startsWith('Time-delayed (S-type)'))!.querySelector('select')!;
+    expect(s.options[0].textContent).toBe('Auto — no');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(s, 'yes');
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(elcbGroups(latest, board())).toHaveLength(1);
+    expect(elcbGroups(latest, board())[0].label).toMatch(/S-type$/);
+    openMenu();
+    act(() => item('Re-group all ELCBs…').click());
+    dlg = document.querySelector('.elcb-dialog')!;
+    pick(dlg, 'RCBO on every circuit');
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    expect(board()).toMatchObject({ elcbs: undefined, rcboEveryCircuit: true });
+    expect(scheduleCircuits(latest, BOARD).every((f) => f.rcbo || f.noRcd)).toBe(true);
+  });
+
   it('has no ELCB / RCD menu on the MD form', () => {
     shown = 'MDB-1';
     mount();
