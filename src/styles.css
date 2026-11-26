@@ -2553,6 +2553,13 @@ input.cad-dlg-ali{width:64px}
 .cad-chk-foot{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-1)}
 .cad-chk-foot .m{flex:1}
 .cad-chk .m{color:var(--mut);font-size:var(--fs-xs)}
+/* All rooms like this: this room, the rooms of its type, or the whole level. */
+.cad-scope-wrap{display:grid;gap:2px;font-size:var(--fs-xs);color:var(--mut)}
+.cad-scope{display:flex}
+.cad-scope button{flex:1;min-height:24px;padding:0 4px;margin-left:-1px;background:var(--p2);border:1px solid var(--line);color:var(--tx);font-size:var(--fs-xs);white-space:nowrap}
+.cad-scope button:first-child{margin-left:0;border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.cad-scope button:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.cad-scope button[aria-checked=true]{position:relative;z-index:1;border-color:var(--acc);color:var(--acc)}
 /* Design CAD colour dialog: compact index colours 1–255 and true colour, portalled outside the ribbon. */
 .cad-colour{position:relative;display:inline-block}
 .cad-colour-btn{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);padding:1px 6px;min-height:20px;border:1px solid var(--field-line);border-radius:3px;background:var(--p2);color:var(--tx);cursor:pointer;white-space:nowrap}

@@ -998,6 +998,52 @@ describe('CAD view', () => {
     expect(document.body.textContent).toContain('Coverage: CCTV');
   });
 
+  it('Fill room: Same type fills every room of the clicked room\'s type in one change, Whole level every room with an outline', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const rooms = buildingInfoOf(project).rooms.filter((r) => (r.outline?.length ?? 0) >= 3);
+    const majlis = rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    const scope = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.cad-scope [role=radio]')].find((b) => b.textContent!.startsWith(label))!;
+    const roomsOf = () => new Set((project.elvDevices ?? []).map((d) => d.roomId));
+    act(() => { state.setTool('fill'); });
+    await act(async () => { scope('Same type').click(); });
+    const calls = onChange.mock.calls.length;
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    const same = rooms.filter((r) => r.type === majlis.type).length;
+    expect(roomsOf().size).toBeLessThanOrEqual(same);
+    expect(roomsOf().has(majlis.id)).toBe(true);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/^\d+ rooms?: \d+ smoke detectors? placed/);
+    await act(async () => { scope('Whole level').click(); });
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(onChange.mock.calls.length).toBe(calls + 2);
+    expect(roomsOf().size).toBe(rooms.length);
+  });
+
+  it('Light room: Whole level shows Place N lights in M rooms, and Place lights several rooms in one change', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const rooms = buildingInfoOf(project).rooms.filter((r) => (r.outline?.length ?? 0) >= 3);
+    const majlis = rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    await command('LUX');
+    await clickAt(cx / 0.001, cy / 0.001);
+    act(() => state.setFeederId('DB-GF1-Y1'));
+    await act(async () => { ([...document.querySelectorAll<HTMLButtonElement>('.cad-scope [role=radio]')].find((b) => b.textContent!.startsWith('Whole level')))!.click(); });
+    const place = () => document.querySelector('.cad-devbtns .chip.primary') as HTMLButtonElement;
+    const m = /^Place (\d+) lights? in (\d+) rooms?$/.exec(place().textContent!)!;
+    expect(m).toBeTruthy();
+    expect(Number(m[2])).toBeGreaterThan(1);
+    const calls = onChange.mock.calls.length;
+    await act(async () => { place().click(); });
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(new Set((project.lvPoints ?? []).filter((d) => d.type === 'ltg').map((d) => d.x)).size).toBeGreaterThan(1);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(new RegExp(`^${m[1]} lights? placed in ${m[2]} rooms? on \\d+ circuits?`));
+  });
+
   it('keeps the devices placed last, newest first', async () => {
     act(() => root.render(<Host />));
     await flush();

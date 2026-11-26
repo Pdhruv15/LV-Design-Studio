@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../../types';
-import { canFill, copyTo, coverageGaps, coverageNote, deviceNear, elvLayer, fillAt, moveTo, placeAt, remove, rotate } from './elvPlan';
+import { canFill, copyTo, coverageGaps, coverageNote, deviceNear, elvLayer, FILL_MAX, fillAt, fillRooms, moveTo, placeAt, remove, rotate } from './elvPlan';
 
 const box = (x1: number, y1: number, x2: number, y2: number): [number, number][] => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
 const L1 = { building: 'B', level: 'L1' };
@@ -52,6 +52,23 @@ describe('ELV layer of the Floor plan page', () => {
     expect(fillAt(project(), L1, 'call-point', [3, 3]).message).toMatch(/no coverage spacing to fill by/);
     expect(fillAt(project(), L1, 'smoke-detector', [50, 3]).message).toMatch(/^No room with an outline there/);
     expect([canFill('smoke-detector'), canFill('ceiling-speaker'), canFill('camera')]).toEqual([true, true, false]);
+  });
+
+  it('fills several rooms in one change, previews them, and stops at the limit of a run', () => {
+    const rooms = [{ name: 'Office', outline: box(0, 0, 20, 10) }, { name: 'Store', outline: box(30, 0, 40, 10) }];
+    const r = fillRooms(project(), L1, 'smoke-detector', rooms);
+    expect(r).toMatchObject({ placed: 3, left: 0, message: '2 rooms: 3 smoke detectors placed · ⌘Z to undo' });
+    expect(r.next!.elvDevices!.map((d) => d.roomId)).toEqual(['R1', 'R1', undefined]);
+    const preview = elvLayer(project(), L1, MM, { system: 'fire-alarm', coverage: false, selected: null, preview: { type: 'smoke-detector', at: [3, 3], rooms: rooms.map((x) => x.outline) } });
+    expect(preview.symbols.filter((s) => s.ghost).map((s) => s.at[0] > 25000)).toEqual([false, false, true]);
+    expect(fillRooms(project(), L1, 'call-point', rooms)).toMatchObject({ placed: 0, left: 0, message: expect.stringMatching(/no coverage spacing/) });
+    // A room that would take the run over FILL_MAX is left out.
+    const big = [{ name: 'Hall', outline: box(0, 0, 200, 200) }, { name: 'Hall 2', outline: box(0, 0, 200, 200) }, { name: 'Closet', outline: box(0, 0, 5, 5) }];
+    const cut = fillRooms(project(), L1, 'smoke-detector', big);
+    expect(cut.placed).toBeLessThanOrEqual(FILL_MAX);
+    expect(cut.left).toBe(1); // the second hall; the closet still fits
+    expect(cut.message).toBe(`2 rooms: ${cut.placed} smoke detectors placed — 1 room left out: ${FILL_MAX} devices a run · ⌘Z to undo`);
+    expect(elvLayer(project(), L1, MM, { system: 'fire-alarm', coverage: false, selected: null, preview: { type: 'smoke-detector', at: [3, 3], rooms: big.map((x) => x.outline) } }).symbols).toHaveLength(FILL_MAX);
   });
 
   it('selects, moves, turns, deletes and copies devices', () => {

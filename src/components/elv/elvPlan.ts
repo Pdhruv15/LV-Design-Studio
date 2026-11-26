@@ -44,10 +44,13 @@ function coverageOf(p: Project, lv: PlanLevel, system: ElvSystem): RoomCoverage[
   return c;
 }
 
+/** The most devices one Fill room run places over several rooms. */
+export const FILL_MAX = 400;
+
 /** The ELV layer of a level: every device (other systems dimmed), the chosen system's coverage and uncovered squares,
  * and the Fill room preview for the room under the pointer. A device being dragged (`held`, metres) is drawn where it
  * is held; the uncovered squares follow when it is dropped. */
-export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: ElvSystem; coverage: boolean; selected: string | null; preview?: { type: ElvDeviceType; at: Pt }; held?: { id: string; at: Pt } }): ElvLayer {
+export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: ElvSystem; coverage: boolean; selected: string | null; preview?: { type: ElvDeviceType; at: Pt; rooms?: Pt[][] }; held?: { id: string; at: Pt } }): ElvLayer {
   const rooms = new Map(buildingInfoOf(p).rooms.map((r) => [r.id, r]));
   const list = devicesOn(p, lv.building, lv.level).map((d) => (d.id === o.held?.id ? { ...d, x: o.held.at[0], y: o.held.at[1] } : d));
   const symbols = list.map((d) => symbolOf(d.type, units([d.x, d.y], mpu), {
@@ -71,7 +74,13 @@ export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: El
     const step = Math.max(0, ...coverage.map((c) => c.step));
     if (cells.length) gaps = { size: step / mpu, at: cells };
   }
-  if (o.preview) {
+  if (o.preview?.rooms) {
+    let n = 0;
+    for (const outline of o.preview.rooms) {
+      if (n >= FILL_MAX) break;
+      for (const d of fillPoints(outline, o.preview.type, FILL_MAX - n)) { symbols.push(symbolOf(d.type, units([d.x, d.y], mpu), { ghost: true })); n++; }
+    }
+  } else if (o.preview) {
     const room = roomAt(p, lv.building, lv.level, o.preview.at[0], o.preview.at[1]);
     if (room?.outline) for (const d of fillPoints(room.outline, o.preview.type)) symbols.push(symbolOf(d.type, units([d.x, d.y], mpu), { ghost: true }));
   }
@@ -109,6 +118,23 @@ export function fillAt(p: Project, lv: PlanLevel, type: ElvDeviceType, at: Pt): 
   if (!items.length) return { message: `${deviceLabel(type)} has no coverage spacing to fill by: place it one by one.` };
   const { project } = placeDevices(p, lv.building, lv.level, items);
   return { next: project, message: `${room.name}: ${plural(items.length, deviceLabel(type).toLowerCase())} placed · ⌘Z to undo` };
+}
+
+/** Fill room over several rooms: a grid of the device in each, in the order given; a room that would take the run
+ * over FILL_MAX is left out (`left` counts them). One project change. */
+export function fillRooms(p: Project, lv: PlanLevel, type: ElvDeviceType, rooms: { name: string; outline: Pt[] }[]): { next?: Project; message: string; placed: number; left: number } {
+  const items: ReturnType<typeof fillPoints> = [];
+  let count = 0, left = 0;
+  for (const room of rooms) {
+    const grid = fillPoints(room.outline, type);
+    if (!grid.length) continue;
+    if (items.length + grid.length > FILL_MAX) { left++; continue; }
+    items.push(...grid);
+    count++;
+  }
+  if (!items.length) return { message: `${deviceLabel(type)} has no coverage spacing to fill by: place it one by one.`, placed: 0, left };
+  const { project } = placeDevices(p, lv.building, lv.level, items);
+  return { next: project, placed: items.length, left, message: `${plural(count, 'room')}: ${plural(items.length, deviceLabel(type).toLowerCase())} placed${left ? ` — ${plural(left, 'room')} left out: ${FILL_MAX} devices a run` : ''} · ⌘Z to undo` };
 }
 
 export function moveTo(p: Project, id: string, at: Pt): { next: Project; message: string } {
