@@ -90,7 +90,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
     expect(group('Annotate')).toBeNull(); // the LVCAD row had grown wider than a laptop's window
     pick('Annotate');
-    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Adjust space', 'Dimension layer', 'Update', 'Linear', 'Quick', 'Continue', 'Dimension styles'],
+    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Dimension break', 'Adjust space', 'Dimension layer', 'Update', 'Text position', 'Linear', 'Quick', 'Continue', 'Dimension styles'],
       ['Multileader', 'Multileader style', 'Add leader', 'Align', 'Room tag', 'Tag all rooms', 'Keynote'], ['Revision cloud', 'North arrow']]);
     expect(document.querySelector('.ribbon')!.className).toContain('small-named'); // named beside their icons, as on LVCAD
     const look = (subTabs: string[]) => {
@@ -287,7 +287,7 @@ describe('Design CAD ribbon: the main tools named, every tool\'s name on hover',
     expect(tool('Radius').className).not.toContain('on'); // still Radius once it ends
     click(document.querySelector('#ribbon-tools button[title="Radius: more options"]')!);
     const rows = [...document.querySelectorAll('[role="menuitemradio"]')].map((b) => [b.textContent, b.getAttribute('aria-checked')]);
-    expect(rows).toEqual([['Linear (DLI)', 'false'], ['Aligned (DAL)', 'false'], ['Angular (DAN)', 'false'], ['Radius (DRA)', 'true'], ['Diameter (DDI)', 'false']]);
+    expect(rows).toEqual([['Linear (DLI)', 'false'], ['Aligned (DAL)', 'false'], ['Angular (DAN)', 'false'], ['Radius (DRA)', 'true'], ['Diameter (DDI)', 'false'], ['Arc length (DAR)', 'false'], ['Jogged (DJO)', 'false'], ['Ordinate (DOR)', 'false']]);
     rerender({ tool: 'dimbase' });
     expect(tool('Baseline')).toBeTruthy();
     expect(tool('Continue')).toBeNull();

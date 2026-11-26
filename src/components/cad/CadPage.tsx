@@ -15,7 +15,7 @@ import type { ZoomReq } from './CadCanvas';
 import type { ZoomMenuKey } from '../drawingView';
 import { parseZoomScale } from '../../model/cadView';
 import { selectSimilar, type SimilarOpts } from '../../model/cadQuickSelect';
-import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfSegments } from '../../model/cadDims';
+import { endTowards, linesCross, nearestPiece, nearestSegment, onRound, roundOfSegments, segmentsBetween } from '../../model/cadDims';
 import { clipPayload, clipText, lowerLeft, parseClip, pastedItems, withPasted, type ClipPayload } from '../../model/cadClipboard';
 import CadCommandLine from './CadCommandLine';
 import CadMenu from './CadMenu';
@@ -41,7 +41,7 @@ import BlocksPalette, { INSERT_DEFAULTS, type InsertSettings, type LibraryFile }
 import { alignedMleaders, collectedMleaders, mleaderNote, newMleader, nearestLeader, withLeaderAdded, withLeaderRemoved } from '../../model/cadMleader';
 import { attachLabel, attachOf, noteAttached, noteBox, noteWithWidth, parseAttach, plainText, type NoteAttach, type NotePara } from '../../model/cadMtext';
 import { ATT_DRAFT, AttDefDialog, AttEditDialog, AttPromptDialog, BlockDialog, DIALOG_TOOLS, DimStyleDialog, EditDialog, MleaderStyleDialog, PointStyleDialog, TextStyleDialog, type AttDraft, type BlockDraft } from './CadDialogs';
-import { autoDimGap, dimDirFor, dimLayerOf, dimLayerSetting, dimPicksObject, pickedDimStyle, qdimPointsOf, qdimPointsOfDrawing, quickDims, restyledDims, spacedDims, USE_CURRENT, withDimLayer, type QdimMode } from '../../model/cadDimTools';
+import { autoDimGap, breaksDim, ordDatumOf, ordinateDir, withOrdDatum, dimBreaksAt, dimTextAlong, dimTextAngle, dimTextAt, dimTextHome, movesDimText, styleTextAlong, withBreaks, dimDirFor, dimLayerOf, dimLayerSetting, dimPicksObject, pickedDimStyle, qdimPointsOf, qdimPointsOfDrawing, quickDims, restyledDims, spacedDims, USE_CURRENT, withDimLayer, type QdimMode } from '../../model/cadDimTools';
 import { currentDimStyle, currentMleaderStyle, currentTextStyle, dimLookOf, mleaderStylesOf, mleaderStylesToStore, dimStandardAsBefore, dimStylesOf, dimStylesToStore, lookOf, STANDARD, textStylesOf, textStylesToStore } from '../../model/cadStyles';
 import { chooseDrawing, drawingWithDevices, explodeObjects, openDrawing, readRefGeometry, reopenDrawing, sampleDrawing, type CadObject, type CadView, type DeviceOut } from '../../engines/cad/cadEngine';
 import { planSymbolShapes, symbolBox } from '../../model/planSymbols';
@@ -164,7 +164,7 @@ const hex = (rgb: number) => (rgb === 0xff000007 ? 'var(--cad-ink)' : `#${rgb.to
 const DOCK_W = 280, DOCK_MIN = 220, DOCK_MAX = 480, DOCK_KEY = 'lvds.cad.dock';
 /** Tools whose next point has a length and angle from the last one: the boxes of dynamic input. */
 const POINT_TOOLS: CadTool[] = ['line', 'xline', 'ray', 'pline', 'tray', 'cable', 'dim', 'dimlin', 'dimal', 'move', 'copy', 'dist', 'area', 'trace', 'leader'];
-const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM (click a line, arc or circle, or two points) · DLI (linear) · DAL (aligned) · DRA (radius) · DDI (diameter) · DAN (angular) · QDIM (a row of dimensions over a pick) · DIMSPACE (space rows of dimensions) · DIMLAYER (layer of new dimensions) · ST (text style) · D (dimension style; DIMSTYLE A updates the dimensions picked) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
+const HELP = 'Commands: OPEN · CLOSE · CLOSEALL · SAVE (DXF) · SAVEDWG · ROOMS (add found rooms) · RA (click inside a room) · TRACE (trace a room) · PN (pick its name) · CT (cable tray run) · CR (cable route) · LR (link a line as a cable route) · SCHED (update schedules) · WC (wire circuits) · W1 (wire one) · TAGS · FILL (fill a room with an ELV device) · LUX (light a room by the lumen method) · RDT (room device template) · EM (emergency lighting) · SEL (select devices: Shift-click, or a window) · QS (quick select) · SELECTSIMILAR · ARL (array on line) · MA (match) · ALIGNH / ALIGNV / SPACE (the devices selected) · AL (align objects by points) · TR (trim) · EX (extend) · O (offset) · F (fillet) · CHA (chamfer) · BR (break) · J (join) · X (explode) · B (block from drawn objects: the dialog; -BLOCK on the command line) · I (the Blocks palette: this drawing, Recent, Library; -INSERT by name) · ATT (attribute definition for a block) · ATE (edit a block\'s attributes; or double-click it) · ATTEXT (the attributes as a table) · PO (point) · DIV (points at the divisions of an object) · ME (points every length along it) · PTYPE (point style) · DR (draw order: Front, Back, Above or Under an object) · TEXTTOFRONT (texts, dimensions, leaders over the rest) · MI (mirror) · SC (scale) · S (stretch) · AR (array) · CROP (BCROP, cut a block along an outline) · MP (match properties) · H (hatch) · HE (edit a hatch: pattern, spacing, angle, origin, islands; or double-click it) · BO (boundary: a closed polyline round an area) · LE (leader) · RT (room tag) · NORTH · LA (layer palette) · CLAYER (current layer) · LAYISO / LAYUNISO · RESTOREDWG (erased drawing objects back) · COV (coverage) · L (line) · XL (XLINE, construction line) · RAY · PL (polyline, C closes) · REC · C (circle) · A (arc, 3 points) · T (text) · MT (notes in a box, lines wrapped to its width) · MLD (multileader) · MLEADERADD / MLEADERREMOVE · MLA (align multileaders) · MLC (collect them) · MLS (multileader style) · ED (edit a text, dimension or multileader in place, or double-click it) · TJ (justify texts) · TH (text height) · TA (align or space texts) · TC (text case) · TPREFIX / TSUFFIX · TOR (readable text) · TCEN (centre between two points) · TCOPY (words of another text) · TFRAME (circle, box or hexagon round texts) · TMASK (mask under texts) · TCOUNT (numbered texts) · KN (keynote with a legend) · RTALL (tag all rooms) · DIM (click a line, arc or circle, or two points) · DLI (linear) · DAL (aligned) · DRA (radius) · DDI (diameter) · DAN (angular) · DAR (arc length) · DJO (jogged radius) · DOR (ordinate; D sets its datum) · QDIM (a row of dimensions over a pick) · DIMSPACE (space rows of dimensions) · DIMBREAK (gaps where lines cross a dimension) · DIMTEDIT (move or turn a dimension\'s text) · DIMLAYER (layer of new dimensions) · ST (text style) · D (dimension style; DIMSTYLE A updates the dimensions picked) · M (move) · CO (copy) · COPYCLIP (Ctrl+C) · COPYBASE (Ctrl+Shift+C) · PASTECLIP (Ctrl+V) · PASTEORIG · RO (rotate) · E (erase) · DI (distance) · AREA (O = object) · RA (room area) · DEV (add device) · M (move) · E (delete) · LI (inspect) · FIT (ZE) · Z (zoom: W window, P previous, S scale) · LAYERS (layers panel) · OSNAP (F3) · GRID (F7) · ORTHO (F8) · SNAP (F9) · POLAR (F10) · OTRACK (F11) · DYN (F12) · LWT · DS (drafting settings) · LEGEND (LG) / NOTES (a legend or notes table on a layout, moved by its frame) · SAVEAS · EXPORT · PUBLISH · F2 history · Esc cancels, Enter or Space ends a step or repeats the last command.';
 /** Bind's count in the Save line: reference lines, texts and hatches. */
 const boundText = (shapes: { kind: string }[]) => {
   const n = (k: string) => shapes.filter((x) => x.kind === k).length, en = (v: number) => v.toLocaleString('en-GB');
@@ -274,9 +274,14 @@ const PROMPT: Record<CadTool, string> = {
   dimbase: 'DIMBASELINE  Specify second extension line origin (from the last dimension):',
   qdim: 'QDIM  Select geometry to dimension:',
   dimspace: 'DIMSPACE  Select base dimension:',
+  dimbreak: 'DIMBREAK  Select dimensions to add or remove breaks:',
+  dimtedit: 'DIMTEDIT  Select dimension:',
   dimrad: 'DIMRADIUS  Select arc or circle:',
   dimdia: 'DIMDIAMETER  Select arc or circle:',
   dimang: 'DIMANGULAR  Select arc, circle, line or <specify vertex>:',
+  dimarc: 'DIMARC  Select arc segment:',
+  dimjog: 'DIMJOGGED  Select arc or circle:',
+  dimord: 'DIMORDINATE  Specify feature location or [Datum]:',
   textedit: 'TEXTEDIT  Select a text or dimension:',
   xattach: 'XATTACH  Specify insertion point:',
   xclip: 'XCLIP  Click the corners of the clip outline, Enter to finish (two corners: a rectangle), or [Object] to pick a closed outline:',
@@ -305,6 +310,12 @@ const ALIGN_ASK = 'ALIGN  Scale objects to the alignment points? [Yes/No] <No>:'
 const qdimWhere = (mode: QdimMode) => `QDIM  Specify dimension line position, or [Continuous/Baseline] <${mode === 'continuous' ? 'Continuous' : 'Baseline'}>:`;
 const QDIM_MAX = 300;
 const DIMSPACE_GAP = 'DIMSPACE  Enter value or [Auto] <Auto>:';
+const BRK_BY = 'DIMBREAK  Select objects to break the dimensions or [Auto/Remove] <Auto>:';
+const TEDIT_WHERE = 'DIMTEDIT  Specify new location for dimension text or [Left/Right/Center/Home/Angle]:';
+/** The Dimensions panel's pick-and-place tools (Quick, Adjust space, Break, Text position): their own steps. */
+const DQ_TOOLS: CadTool[] = ['qdim', 'dimspace', 'dimbreak', 'dimtedit'];
+/** Objects of the opened drawing that Break does not break at: their words, fills and points. */
+const NO_BREAK_KINDS = new Set(['text', 'mtext', 'attrib', 'hatch', 'solid', 'point']);
 const mirrorAsk = (s: EditSettings) => `MIRROR  Erase source objects? [Yes/No] <${s.keep ? 'No' : 'Yes'}>:`;
 /** Layer of the cable routes drawn or linked in the app. */
 const CABLE_LAYER = 'E-CABLE';
@@ -543,9 +554,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [edNote, setEdNote] = useState<{ id?: string; draft: SketchItem; ml?: Omit<SketchItem, 'id'> } | null>(null);
   /** The multileader tools' step (S12). */
   const [ml, setMl] = useState<MlState | null>(null);
-  /** Quick dimension (QDIM) and Adjust space (DIMSPACE): the step, and DIMSPACE's base dimension; QDIM's way of laying
-   * its row is kept for the next time. */
-  const [dq, setDq] = useState<{ step: 'pick' | 'where' | 'base' | 'gap'; base?: string } | null>(null);
+  /** Quick dimension (QDIM), Adjust space (DIMSPACE), Break (DIMBREAK) and Text position (DIMTEDIT): the step,
+   * DIMSPACE's base dimension or the one DIMTEDIT moves the text of, and the objects Break breaks at; QDIM's way of
+   * laying its row is kept for the next time. */
+  const [dq, setDq] = useState<{ step: 'pick' | 'where' | 'base' | 'gap' | 'by' | 'angle'; base?: string; by?: { sk: string[]; dw: CadObject[] } } | null>(null);
   const [qdMode, setQdMode] = useState<QdimMode>('continuous');
   const [mtAsk, setMtAsk] = useState<{ step: 'height' | 'just' | 'width' | 'ntwidth'; id?: string } | null>(null);
   const [mtSet, setMtSet] = useState<{ mm?: number; just?: NoteAttach }>({});
@@ -608,6 +620,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [edText, setEdText] = useState<{ id: string; value: string } | null>(null);
   // The arc or circle a radius or diameter dimension is drawn on (DIM: `k`, the kind its pick gave).
   const [radPick, setRadPick] = useState<{ c: Pt; r: number; k?: 'radius' | 'diameter' } | null>(null);
+  const [arcPick, setArcPick] = useState<{ c: Pt; r: number; ends: [Pt, Pt] } | null>(null);
+  const [jogPick, setJogPick] = useState<{ c: Pt; r: number; o?: Pt } | null>(null);
+  const [ordPick, setOrdPick] = useState<{ f?: Pt; force?: 'x' | 'y'; datum?: true } | null>(null);
   const [angPick, setAngPick] = useState<{ seg1?: [Pt, Pt]; at1?: Pt; v?: Pt; p1?: Pt; p2?: Pt; vertex?: true } | null>(null);
   const [ssOpts, setSsOpts] = useState<SimilarOpts>({ colour: false, linetype: false });
   const [ssAsk, setSsAsk] = useState(false);
@@ -745,7 +760,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     setDlg((d) => (DIALOG_TOOLS.includes(tool as EditTool) ? 'edit' : d === 'edit' ? null : d));
     if (tool !== 'none' && tool !== 'xattach' && tool !== 'xclip') { const label = PROMPT[tool].split(' ')[0]; setRecent((r) => [{ label, tool }, ...r.filter((x) => x.label !== label)].slice(0, 8)); }
     setCrop(tool === 'crop' ? cropNext.current ?? { step: 'pick' } : null); cropNext.current = null;
-    setRadPick(null); setAngPick(null); setSsAsk(false); setEdText(null);
+    setRadPick(null); setAngPick(null); setArcPick(null); setJogPick(null); setOrdPick(tool === 'dimord' ? {} : null); setSsAsk(false); setEdText(null);
     // HATCHEDIT with hatches picked first: they are edited at once; BOUNDARY starts with islands on.
     const he = heNext.current; heNext.current = null;
     const preHatches = tool === 'hatchedit' ? (pickedSk.length ? pickedSk : selSketch ? [selSketch] : []).filter((x) => x.hatch).map((x) => x.id) : [];
@@ -763,6 +778,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     else setMl(null);
     // QDIM with objects picked first asks at once where the row goes; DIMSPACE starts with its base dimension.
     if (tool === 'qdim') { setDq({ step: qdPts.length > 1 ? 'where' : 'pick' }); if (qdPts.length > 1) cad.say(qdimWhere(qdMode)); }
+    else if (tool === 'dimbreak') { const ready = pickedSk.some(breaksDim); setDq({ step: ready ? 'by' : 'pick', by: { sk: [], dw: [] } }); if (ready) cad.say(BRK_BY); }
+    else if (tool === 'dimtedit') { const one = pickedSk.length === 1 && pickedSk[0].kind === 'dim' ? pickedSk[0] : undefined; setDq({ step: one ? 'where' : 'pick', base: one?.id }); if (one) cad.say(TEDIT_WHERE); }
     else setDq(tool === 'dimspace' ? { step: 'base' } : null);
     // CROP with drawn items picked first: they are what is cut.
     if (tool === 'crop' && first) { const ids = picked.length ? picked.filter((k) => k.startsWith('sk:')).map((k) => k.slice(3)) : [cad.selected!.slice(3)]; setCrop({ step: 'outline', target: { items: ids, label: `${ids.length} drawn object${ids.length === 1 ? '' : 's'}` } }); cad.say(CROP_OUTLINE); }
@@ -2266,10 +2283,78 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     else change(r.moved.reduce((q, x) => updateSketch(q, fileOf(), x), project), `DIMSPACE  ${r.spaced} dimension${r.spaced === 1 ? '' : 's'} ${gap ? `spaced ${m(toM(gap))} apart` : 'lined up with the base'}${left} · ⌘Z to undo`);
     pick([], []); cad.setTool('none');
   }
-  /** A click with Quick dimension or Adjust space (Annotate → Dimensions). A second click on an object picked leaves it out. */
+  /** DIMBREAK: gaps in the dimensions picked where the objects chosen cross them, or (Auto) everything shown that does;
+   * Remove takes their gaps off. One undo step. */
+  async function dimbreakApply(mode: 'by' | 'auto' | 'remove') {
+    const dims = pickedSk.filter(breaksDim);
+    if (!dims.length || !view) { cad.setTool('none'); return; }
+    const n = (k: number, w: string) => `${k} ${w}${k === 1 ? '' : 's'}`;
+    if (mode === 'remove') {
+      const had = dims.filter((d) => d.brk?.length);
+      if (had.length) change(had.reduce((q, d) => updateSketch(q, fileOf(), withBreaks(d, [])), project), `DIMBREAK  Breaks taken off ${n(had.length, 'dimension')} · ⌘Z to undo`);
+      else cad.say('DIMBREAK  The dimensions picked have no breaks.');
+      pick([], []); cad.setTool('none'); return;
+    }
+    const S = view.segs, ofDw = (os: readonly CadObject[]) => os.filter((o) => !NO_BREAK_KINDS.has(o.kind.toLowerCase())).flatMap((o) => segmentsBetween(S, o.seg_start, o.seg_end));
+    const drawn = (its: readonly SketchItem[]) => its.flatMap((it) => segmentsOf(it, units.factor, defs));
+    const chosen = mode === 'by' ? [...drawn(sketch.filter((x) => dq?.by?.sk.includes(x.id))), ...ofDw(dq?.by?.dw ?? [])] : undefined;
+    const others = mode === 'auto' ? shownSketch.filter((x) => x.kind !== 'text' && x.kind !== 'mtext' && x.kind !== 'point' && x.kind !== 'attdef') : [];
+    const out: SketchItem[] = [];
+    for (const d of dims) {
+      let segs = chosen;
+      if (!segs) {
+        // Auto: the drawn objects shown and the drawing's objects across the dimension's box.
+        const ls = dimOf(d, units.factor).lines.flat(), xs = ls.map((q) => q[0]), ys = ls.map((q) => q[1]);
+        const inBox = await view.pickWindow([Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)], true, pickOn);
+        segs = [...drawn(others.filter((x) => x.id !== d.id)), ...ofDw(inBox.objects)];
+      }
+      const brk = dimBreaksAt(d, segs, units.factor);
+      if (brk.length || d.brk?.length) out.push(withBreaks(d, brk));
+    }
+    const gaps = out.reduce((k, d) => k + (d.brk?.length ?? 0), 0);
+    if (!gaps && !out.length) cad.say(`DIMBREAK  Nothing crosses the ${dims.length === 1 ? 'dimension' : 'dimensions'} picked.`);
+    else change(out.reduce((q, d) => updateSketch(q, fileOf(), d), project), `DIMBREAK  ${n(gaps, 'break')} in ${n(out.length, 'dimension')} · ⌘Z to undo`);
+    pick([], []); cad.setTool('none');
+  }
+  /** DIMTEDIT: the dimension with its text placed, one undo step; undefined says why not. */
+  function dimteditApply(next: SketchItem | undefined, what: string) {
+    if (!next) { cad.say('DIMTEDIT  This dimension was drawn before dimension styles: give it a style first (Update), then Left, Right or Center.'); return; }
+    change(updateSketch(project, fileOf(), next), `DIMTEDIT  ${what} · ⌘Z to undo`);
+    pick([], []); cad.setTool('none');
+  }
+  /** A click with Quick dimension, Adjust space, Break or Text position (Annotate → Dimensions). A second click on an
+   * object picked leaves it out. */
   async function dqClick(at: Pt, pixel: number) {
     if (!dq) return;
     const sk = hitAt(pickable, at, pickR * pixel);
+    if (tool === 'dimbreak') {
+      if (dq.step === 'pick') {
+        if (!sk || !breaksDim(sk)) { cad.say('DIMBREAK  Click a linear or aligned dimension (a drawn one):'); return; }
+        const sks = pickedKeys.has(`sk:${sk.id}`) ? pickedSk.filter((x) => x.id !== sk.id) : [...pickedSk, sk];
+        pick([], sks); cad.say(`DIMBREAK  ${picks(sks.length)} — Enter when done`); return;
+      }
+      // The objects to break at: drawn ones, else ones of the opened drawing.
+      const by = dq.by ?? { sk: [], dw: [] };
+      let next: typeof by;
+      if (sk) { if (pickedKeys.has(`sk:${sk.id}`)) { cad.say('DIMBREAK  That is one of the dimensions picked: click what crosses them.'); return; } next = { ...by, sk: by.sk.includes(sk.id) ? by.sk.filter((x) => x !== sk.id) : [...by.sk, sk.id] }; }
+      else {
+        const o = view ? await view.pick(at[0], at[1], pickR * pixel, pickOn) : null;
+        if (!o) { cad.say(`DIMBREAK  Nothing there. ${BRK_BY.slice(10)}`); return; }
+        next = { ...by, dw: by.dw.some((x) => x.handle === o.handle) ? by.dw.filter((x) => x.handle !== o.handle) : [...by.dw, o] };
+      }
+      const k = next.sk.length + next.dw.length;
+      setDq({ ...dq, by: next }); cad.say(`DIMBREAK  ${k} object${k === 1 ? '' : 's'} to break at — Enter when done`); return;
+    }
+    if (tool === 'dimtedit') {
+      const it = sketch.find((x) => x.id === dq.base);
+      if (dq.step === 'pick' || !it) {
+        if (!sk || sk.kind !== 'dim') { cad.say(`DIMTEDIT  Click a dimension (a drawn one). ${PROMPT.dimtedit.slice(10)}`); return; }
+        pick([], [sk]); setDq({ step: 'where', base: sk.id }); cad.say(TEDIT_WHERE); return;
+      }
+      if (dq.step === 'angle') { cad.say('DIMTEDIT  Type the angle of the text (degrees), or Enter for as drawn:'); return; }
+      if (!movesDimText(it)) { cad.say('DIMTEDIT  A radius, diameter or angle keeps its text where it is drawn (move it by its grip): Home or Angle.'); return; }
+      dimteditApply(dimTextAt(it, at), 'Text moved'); return;
+    }
     if (tool === 'qdim') {
       if (dq.step === 'where') { qdimPlace(at); return; }
       // A drawn object, else one of the opened drawing.
@@ -2291,9 +2376,40 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     cad.say(DIMSPACE_GAP);
   }
-  /** Typed input at a Quick dimension or Adjust space prompt; false lets a typed point through (QDIM's row). */
+  /** Typed input at a Quick dimension, Adjust space, Break or Text position prompt; false lets a typed point through
+   * (QDIM's row, DIMTEDIT's text). */
   function dqTyped(c: string): boolean {
     if (!dq) return false;
+    if (tool === 'dimbreak') {
+      if (dq.step === 'pick') {
+        if (c) { cad.say('DIMBREAK  Click the dimensions to break, then Enter.'); return true; }
+        if (!pickedSk.some(breaksDim)) { cad.setTool('none'); return true; }
+        setDq({ ...dq, step: 'by' }); cad.say(BRK_BY); return true;
+      }
+      const k = (dq.by?.sk.length ?? 0) + (dq.by?.dw.length ?? 0);
+      if (c === 'R' || c === 'REMOVE') { void dimbreakApply('remove'); return true; }
+      if (c === 'A' || c === 'AUTO' || (!c && !k)) { void dimbreakApply('auto'); return true; }
+      if (!c) { void dimbreakApply('by'); return true; }
+      cad.say(`DIMBREAK  "${c}" is not an option. ${BRK_BY.slice(10)}`); return true;
+    }
+    if (tool === 'dimtedit') {
+      const it = sketch.find((x) => x.id === dq.base);
+      if (dq.step === 'pick' || !it) { if (!c) cad.setTool('none'); else cad.say(`DIMTEDIT  Click a dimension. ${PROMPT.dimtedit.slice(10)}`); return true; }
+      if (dq.step === 'angle') {
+        if (!c) { dimteditApply(dimTextAngle(it, undefined), 'Text at its angle as drawn'); return true; }
+        if (!isNumber(c)) { cad.say(`DIMTEDIT  "${c}" is not an angle: type it in degrees, or Enter for as drawn.`); return true; }
+        dimteditApply(dimTextAngle(it, Number(c)), `Text turned to ${Number(c)}°`); return true;
+      }
+      const along = ({ L: 'first', LEFT: 'first', R: 'second', RIGHT: 'second', C: 'centre', CENTER: 'centre', CENTRE: 'centre' } as Record<string, 'first' | 'second' | 'centre'>)[c];
+      if (along) {
+        if (!movesDimText(it)) { cad.say('DIMTEDIT  Left, Right and Center are for linear and aligned dimensions: Home or Angle.'); return true; }
+        dimteditApply(dimTextAlong(it, along === 'centre' ? undefined : along), along === 'centre' ? 'Text centred' : `Text next to the ${along} extension line`); return true;
+      }
+      if (c === 'H' || c === 'HOME') { dimteditApply(dimTextHome(it, styleTextAlong(project, it)), 'Text back where its style puts it'); return true; }
+      if (c === 'A' || c === 'ANGLE') { setDq({ ...dq, step: 'angle' }); cad.say('DIMTEDIT  Specify angle for dimension text (degrees, Enter: as drawn):'); return true; }
+      if (!c) { cad.setTool('none'); return true; }
+      return false;
+    }
     if (tool === 'qdim' && dq.step === 'pick') {
       if (c) return false;
       if (!pickedSk.length && !pickedDw.length) { cad.setTool('none'); return true; }
@@ -3594,6 +3710,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const q = roundOfSegments(S, o.seg_start, o.seg_end);
     if (!q) return {};
     const ends: [Pt, Pt] = [[S[o.seg_start * 4], S[o.seg_start * 4 + 1]], [S[(o.seg_end - 1) * 4 + 2], S[(o.seg_end - 1) * 4 + 3]]];
+    // An arc of the opened drawing comes in either direction: its ends anticlockwise, by the middle segment's start.
+    const mi = Math.floor((o.seg_start + o.seg_end) / 2) * 4;
+    if (kind === 'arc' && (ends[0][0] - q.c[0]) * (S[mi + 1] - q.c[1]) - (ends[0][1] - q.c[1]) * (S[mi] - q.c[0]) < 0) ends.reverse();
     return { round: { c: q.c, r: o.radius ?? q.r, ...(kind === 'arc' ? { ends } : {}) } };
   }
 
@@ -3638,6 +3757,39 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const item = radialItem(radPick, at, tool === 'dimrad' ? 'radius' : 'diameter');
       draw(item, `${tool === 'dimrad' ? 'Radius' : 'Diameter'} dimension ${dimLabel(item as SketchItem, units.factor)}`);
       setRadPick(null); cad.say(PROMPT[tool]); return;
+    }
+    if (tool === 'dimarc') {
+      if (!arcPick) {
+        const { round } = await roundOrLineAt(at, pixel);
+        if (round && !round.ends) { cad.say('DIMARC  That is a circle: pick an arc.'); return; }
+        if (!round?.ends) { cad.say('DIMARC  No arc there. Select arc segment:'); return; }
+        setArcPick({ c: round.c, r: round.r, ends: round.ends }); cad.say('DIMARC  Specify arc length dimension location:'); return;
+      }
+      const item = dimItem([arcPick.c, arcPick.ends[0], arcPick.ends[1], at], 'arclen');
+      draw(item, `Arc length dimension ${dimLabel(item as SketchItem, units.factor)}`);
+      setArcPick(null); cad.say(PROMPT.dimarc); return;
+    }
+    if (tool === 'dimjog') {
+      if (!jogPick) {
+        const { round } = await roundOrLineAt(at, pixel);
+        if (!round) { cad.say('DIMJOGGED  No arc or circle there. Select arc or circle:'); return; }
+        setJogPick({ c: round.c, r: round.r }); cad.say('DIMJOGGED  Specify center location override:'); return;
+      }
+      if (!jogPick.o) { setJogPick({ ...jogPick, o: at }); cad.say('DIMJOGGED  Specify dimension line location:'); return; }
+      const item = dimItem([jogPick.c, onRound(jogPick.c, jogPick.r, at), at, jogPick.o], 'jogged');
+      draw(item, `Jogged radius dimension ${dimLabel(item as SketchItem, units.factor)}`);
+      setJogPick(null); cad.say(PROMPT.dimjog); return;
+    }
+    if (tool === 'dimord') {
+      const P = ordPick ?? {};
+      if (P.datum) {
+        if (view) change(withOrdDatum(project, view.file, at), `DIMORDINATE  Datum set at ${Math.round(at[0])},${Math.round(at[1])} · ⌘Z to undo`);
+        setOrdPick({}); cad.say(PROMPT.dimord); return;
+      }
+      if (!P.f) { setOrdPick({ f: at }); cad.say('DIMORDINATE  Specify leader endpoint or [Xdatum/Ydatum]:'); return; }
+      const item = { ...dimItem([P.f, at, ordDatumOf(project, view.file)], 'ordinate'), dir: ordinateDir(P.f, at, P.force) };
+      draw(item, `Ordinate dimension ${dimLabel(item as SketchItem, units.factor)}`);
+      setOrdPick({}); cad.say(PROMPT.dimord); return;
     }
     if (tool === 'dimang') {
       const P = angPick ?? {};
@@ -3699,7 +3851,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(updateSketch(project, fileOf(), matchedProps(from, sk)), `MATCHPROP  Properties copied to the ${kindOf(sk).toLowerCase()} · ⌘Z to undo`);
       return;
     }
-    if (tool === 'qdim' || tool === 'dimspace') { await dqClick(at, pixel); return; }
+    if (DQ_TOOLS.includes(tool)) { await dqClick(at, pixel); return; }
     if (ML_TOOLS.includes(tool)) { mlClick(at, pixel); return; }
     if (EDIT_TOOLS.includes(tool)) { editClick(at, pixel, shiftKey); return; }
     if (tool === 'copy' && pickedDw.length) {
@@ -4568,6 +4720,15 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       if (c === 'I' || c === 'ISLANDS') { setBoundIsl(!boundIsl); cad.say(`BOUNDARY  Pick internal point or [Islands] <Islands ${boundIsl ? 'off' : 'on'}>:`); return; }
       if (!c) { cad.setTool('none'); cad.say('BOUNDARY  Ended.'); return; }
     }
+    if (tool === 'dimarc' || tool === 'dimjog') {
+      if (!c) { if (tool === 'dimarc' ? arcPick : jogPick) { setArcPick(null); setJogPick(null); cad.say(PROMPT[tool]); } else { cad.setTool('none'); cad.say(`${PROMPT[tool].split(' ')[0]}  Ended.`); } return; }
+    }
+    if (tool === 'dimord') {
+      const P = ordPick ?? {};
+      if (!c) { if (P.f || P.datum) { setOrdPick({}); cad.say(PROMPT.dimord); } else { cad.setTool('none'); cad.say('DIMORDINATE  Ended.'); } return; }
+      if (!P.f && !P.datum && (c === 'D' || c === 'DATUM')) { const d = ordDatumOf(project, view?.file); setOrdPick({ datum: true }); cad.say(`DIMORDINATE  Specify datum point <${Math.round(d[0])},${Math.round(d[1])}>:`); return; }
+      if (P.f && (c === 'X' || c === 'XDATUM' || c === 'Y' || c === 'YDATUM')) { setOrdPick({ ...P, force: c[0] === 'X' ? 'x' : 'y' }); cad.say(`DIMORDINATE  ${c[0]} datum. Specify leader endpoint or [Xdatum/Ydatum]:`); return; }
+    }
     if (tool === 'dimang' && !c && !angPick) { setAngPick({ vertex: true }); cad.say('DIMANGULAR  Specify angle vertex:'); return; }
     if (tool === 'tcount' && tc) { tcountInput(text, c); return; }
     if (tool === 'keynote' && kn) {
@@ -4668,7 +4829,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(withDimLayer(project, view.file, row?.name ?? ANNO_LAYER), `DIMLAYER  New dimensions go on ${row?.name ?? ANNO_LAYER} · ⌘Z to undo`);
       return;
     }
-    if ((tool === 'qdim' || tool === 'dimspace') && dqTyped(c)) return;
+    if (DQ_TOOLS.includes(tool) && dqTyped(c)) return;
     if (ML_TOOLS.includes(tool) && mlTyped(c)) return;
     if (tool === 'revcloud' && cloudAsk) {
       if (!c) { setCloudAsk(false); cad.say(PROMPT.revcloud); return; }
@@ -4737,7 +4898,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     }
     // A number typed with Scale (before its base point) sets the factor.
     if (tool === 'scale' && isNumber(c) && !c.startsWith('-')) { const k = String(Number(c)); setEdSet({ ...edSet, factor: k }); cad.say(`SCALE  Factor ${k}`); return; }
-    if (DRAW_TOOLS.includes(tool) || tool === 'copybase' || tool === 'paste' || tool === 'dist' || tool === 'area' || tool === 'trace' || tool === 'zoomwin' || tool === 'dimrad' || tool === 'dimdia' || tool === 'dimang' || tool === 'mleader' || (tool === 'mleaderadd' && !!ml?.target) || (tool === 'mleaderalign' && ml?.step === 'dir') || (tool === 'mleadercollect' && ml?.step === 'where') || (tool === 'qdim' && dq?.step === 'where') || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref') || (tool === 'align' && edPhase === 'points' && edAsk !== 'ascale')
+    if (DRAW_TOOLS.includes(tool) || tool === 'copybase' || tool === 'paste' || tool === 'dist' || tool === 'area' || tool === 'trace' || tool === 'zoomwin' || tool === 'dimrad' || tool === 'dimdia' || tool === 'dimang' || tool === 'dimarc' || tool === 'dimjog' || tool === 'dimord' || tool === 'mleader' || (tool === 'mleaderadd' && !!ml?.target) || (tool === 'mleaderalign' && ml?.step === 'dir') || (tool === 'mleadercollect' && ml?.step === 'where') || (tool === 'qdim' && dq?.step === 'where') || (tool === 'dimtedit' && dq?.step === 'where') || (tool === 'tcen' && edPhase === 'points') || (tool === 'talign' && tAsk?.step === 'ref') || (tool === 'align' && edPhase === 'points' && edAsk !== 'ascale')
       // Mirror's line, Scale's base point and Stretch's two points (after the window), as typed coordinates too.
       || (tool === 'mirror' && edPhase === 'points' && edAsk !== 'erase') || (tool === 'scale' && edPhase === 'points' && edAsk !== 'factor') || (tool === 'stretch' && !!stretchBox)) {
       const p = typedPoint(raw, points[points.length - 1], cursor.at);
@@ -5235,6 +5396,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'mtext' && lastPt && !edNote) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if (tool === 'zoomwin' && lastPt) return [{ ...base, kind: 'pline', pts: rectangle(lastPt, cur), closed: true }];
     if ((tool === 'dimrad' || tool === 'dimdia') && radPick) return [{ ...base, ...radialItem(radPick, cur, tool === 'dimrad' ? 'radius' : 'diameter') }];
+    if (tool === 'dimarc' && arcPick) return [{ ...base, ...dimItem([arcPick.c, arcPick.ends[0], arcPick.ends[1], cur], 'arclen') }];
+    if (tool === 'dimjog' && jogPick) return [{ ...base, ...(jogPick.o ? dimItem([jogPick.c, onRound(jogPick.c, jogPick.r, cur), cur, jogPick.o], 'jogged') : { kind: 'line' as const, pts: [jogPick.c, cur] }) }];
+    if (tool === 'dimord' && ordPick?.f) return [{ ...base, ...dimItem([ordPick.f, cur, ordDatumOf(project, view?.file)], 'ordinate'), dir: ordinateDir(ordPick.f, cur, ordPick.force) }];
     if (tool === 'dimang' && angPick) {
       if (angPick.v && angPick.p1 && angPick.p2) return [{ ...base, ...dimItem([angPick.v, angPick.p1, angPick.p2, cur], 'angular') }];
       if (angPick.v) return [{ ...base, kind: 'line', pts: [angPick.v, cur] }];
@@ -5266,6 +5430,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'dimlin' && points.length === 2) { const look = dimLookOf(project, units.factor)?.look; return [{ ...base, kind: 'dim', pts: [points[0], points[1], cur], dir: linearDir(points[0], points[1], cur), ...(look ? { look } : {}) }]; }
     if ((tool === 'dimcont' || tool === 'dimbase') && lastDim) { const n = chainDim(lastDim, cur); return n ? [{ ...n, id: '_' }] : []; }
     if (tool === 'qdim' && dq?.step === 'where') return qdimRow(cur).slice(0, QDIM_MAX).map((x, i) => ({ ...x, id: `_${i}` }) as SketchItem);
+    if (tool === 'dimtedit' && dq?.step === 'where') { const it = sketch.find((x) => x.id === dq.base); if (it && movesDimText(it)) return [{ ...dimTextAt(it, cur), id: '_' }]; }
     if (shadow) return shadow.items;
     if ((tool === 'move' || tool === 'copy') && lastPt) return [{ ...base, kind: 'line', pts: [lastPt, cur] }];
     if (tool === 'paste' && pasting && view) return pastedItems(pasting, view.file, unitCode, cur).items.slice(0, SHADOW_MAX).map((x, i) => ({ ...x, id: `_${i}` }) as SketchItem);
@@ -5335,7 +5500,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
             <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? []), ...(tool === 'containment' && containmentSegment ? [containmentSegment] : [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...sockSkipLines, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
-              numbersTyped={valuesTyped} layerStyle={styles} refs={cmpRefs} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || ((tool === 'qdim' || tool === 'dimspace') && dq?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
+              numbersTyped={valuesTyped} layerStyle={styles} refs={cmpRefs} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || ((tool === 'qdim' || tool === 'dimspace' || tool === 'dimbreak') && dq?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
                 setGrip(null);
@@ -5562,9 +5727,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
               step={edStep ? `${kindOf(sketch.find((x) => x.id === edStep.id) ?? sketch[0])} picked — ${tool === 'offset' ? 'click the side' : tool === 'break' ? 'click the second point, or Enter' : 'click the second line'}` : stretchBox ? 'Window set — click the base point, then the second point' : PICK_FIRST.includes(tool) && edPhase === 'points' ? (TEXT_TOOLS.includes(tool) ? 'Picked — type the value on the command line' : 'Objects picked — now the points') : undefined}
               onApply={tool === 'join' ? applyJoin : tool === 'array' && !edSet.polar ? () => applyArray() : undefined} />
           )}
-          {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimal' || tool === 'dimcont' || tool === 'dimbase' || tool === 'qdim' || tool === 'dimspace' || tool === 'leader' || tool === 'mleader' || tool === 'mleaderadd' || tool === 'mleaderremove' || tool === 'mleaderalign' || tool === 'mleadercollect' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
+          {(tool === 'text' || tool === 'mtext' || tool === 'dim' || tool === 'dimlin' || tool === 'dimal' || tool === 'dimcont' || tool === 'dimbase' || tool === 'qdim' || tool === 'dimspace' || tool === 'dimbreak' || tool === 'dimtedit' || tool === 'dimarc' || tool === 'dimjog' || tool === 'dimord' || tool === 'leader' || tool === 'mleader' || tool === 'mleaderadd' || tool === 'mleaderremove' || tool === 'mleaderalign' || tool === 'mleadercollect' || tool === 'rtag' || tool === 'rtall' || tool === 'north') && view && (
             <AnnoPanel anno={anno} onAnno={(a) => onChange({ ...project, cadAnno: a }, `Annotation: ${a.textMm} mm text at 1:${a.scale}`)}
-              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Click a line, arc or circle, or two points; then where the dimension goes. An arc gives its radius, a circle its diameter; two points or a line give a horizontal or vertical one by where you drag, aligned beside a sloping one.' }, dimal: { title: 'Aligned dimension', cmd: 'DAL', help: 'Two points, then where the dimension line goes: along the two points.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, qdim: { title: 'Quick dimension', cmd: 'QDIM', help: 'Pick lines, polylines, arcs and circles (a window too), Enter, then click where the row goes: above or below them it is horizontal, beside them vertical. C or B first: Continuous or Baseline.' }, dimspace: { title: 'Adjust space', cmd: 'DIMSPACE', help: 'Click the base dimension, then the ones to space (a window too), Enter, then the gap in metres: Enter for Auto (twice the text), 0 lines them up with the base.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, mleader: { title: 'Multileader', cmd: 'MLD', help: 'Click the arrowhead, then the landing; type the words in the note editor (several leaders, one note).' }, mleaderadd: { title: 'Add leader', cmd: 'MLEADERADD', help: 'Pick a multileader, then click each arrowhead to add; Enter ends.' }, mleaderremove: { title: 'Remove leader', cmd: 'MLEADERREMOVE', help: 'Pick a multileader, then click the leader to remove; one always stays.' }, mleaderalign: { title: 'Align multileaders', cmd: 'MLA', help: 'Pick the multileaders, Enter, the one to align to, then a direction (Enter: vertical).' }, mleadercollect: { title: 'Collect multileaders', cmd: 'MLC', help: 'Pick two or more multileaders, Enter, then click where the collected one goes.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
+              {...({ text: { title: 'Text', cmd: 'T', help: 'Click where it goes, type it on the command line, Enter.' }, mtext: { title: 'Notes', cmd: 'MT', help: 'Two corners for the box, then type; lines wrap to its width.' }, dim: { title: 'Dimension', cmd: 'DIM', help: 'Click a line, arc or circle, or two points; then where the dimension goes. An arc gives its radius, a circle its diameter; two points or a line give a horizontal or vertical one by where you drag, aligned beside a sloping one.' }, dimal: { title: 'Aligned dimension', cmd: 'DAL', help: 'Two points, then where the dimension line goes: along the two points.' }, dimlin: { title: 'Linear dimension', cmd: 'DLI', help: 'Two points, then where the dimension line goes: above or below them it is horizontal, beside them vertical.' }, dimcont: { title: 'Continue dimension', cmd: 'DCO', help: 'Click each next point: a dimension from the last one\'s second point, in line with it. Esc stops.' }, dimbase: { title: 'Baseline dimension', cmd: 'DBA', help: 'Click each next point: a dimension from the last one\'s first point, one step further out. Esc stops.' }, qdim: { title: 'Quick dimension', cmd: 'QDIM', help: 'Pick lines, polylines, arcs and circles (a window too), Enter, then click where the row goes: above or below them it is horizontal, beside them vertical. C or B first: Continuous or Baseline.' }, dimspace: { title: 'Adjust space', cmd: 'DIMSPACE', help: 'Click the base dimension, then the ones to space (a window too), Enter, then the gap in metres: Enter for Auto (twice the text), 0 lines them up with the base.' }, dimbreak: { title: 'Dimension break', cmd: 'DIMBREAK', help: 'Pick the dimensions (a window too), Enter; then Enter for a gap wherever a line crosses them (Auto), or click the objects to break at and Enter. R takes their gaps off.' }, dimarc: { title: 'Arc length', cmd: 'DAR', help: 'Click an arc, then where the dimension arc goes.' }, dimjog: { title: 'Jogged radius', cmd: 'DJO', help: 'Click an arc or circle, then the centre the line starts from, then where the text goes.' }, dimord: { title: 'Ordinate', cmd: 'DOR', help: 'Click a point, then where the leader ends: up or down gives its x, across its y from the datum. D sets the datum; X or Y forces the axis.' }, dimtedit: { title: 'Text position', cmd: 'DIMTEDIT', help: 'Click a dimension, then where its text goes; or L, R or C for next to an extension line or centred, H for where its style puts it, A to turn it.' }, leader: { title: 'Leader', cmd: 'LE', help: 'Click the arrow point, then the text point (more points bend it); type the text and Enter.' }, mleader: { title: 'Multileader', cmd: 'MLD', help: 'Click the arrowhead, then the landing; type the words in the note editor (several leaders, one note).' }, mleaderadd: { title: 'Add leader', cmd: 'MLEADERADD', help: 'Pick a multileader, then click each arrowhead to add; Enter ends.' }, mleaderremove: { title: 'Remove leader', cmd: 'MLEADERREMOVE', help: 'Pick a multileader, then click the leader to remove; one always stays.' }, mleaderalign: { title: 'Align multileaders', cmd: 'MLA', help: 'Pick the multileaders, Enter, the one to align to, then a direction (Enter: vertical).' }, mleadercollect: { title: 'Collect multileaders', cmd: 'MLC', help: 'Pick two or more multileaders, Enter, then click where the collected one goes.' }, rtag: { title: 'Room tag', cmd: 'RT', help: 'Click inside a room: its name and area at its centre.' }, rtall: { title: 'Tag all rooms', cmd: 'RTALL', help: 'Enter tags every room of the level with no tag yet; A tags them all again.' }, north: { title: 'North arrow', cmd: 'NORTH', help: 'Click where it goes; it points up the plan.' } } as const)[tool]} />
           )}
           {tool === 'matchprop' && view && <><h4>Match properties <span className="m">MP</span></h4><div className="cad-devform"><span className="m">{mpFrom ? 'Click each object to give it the layer, colour, linetype and lineweight of the first; Esc stops. Trays and cable routes keep their layers.' : 'Click the object to copy from.'}</span></div></>}
           {tool === 'match' && view && <MatchPanel from={placed.find((x) => x.key === matchFrom)} settings={matchSet} onSettings={setMatchSet} />}
