@@ -18,6 +18,7 @@
 
 | File | Kind | Key functions or components | What they do |
 |---|---|---|---|
+| `src/calc/transformerVoltage.ts` | calc | `MV_VOLTAGES_KV`, `LV_VOLTAGES_V`, `TAP_STEPS_PCT`, `VECTOR_GROUPS`, `transformerPrimaryKv`, `tapBoostPct`, `transformerKind` | Transformer primary voltage (own, else grid source, else 11 kV), tap boost on the secondary (counted in the upstream voltage drop at the main board) and the pick-list values |
 | `src/calc/txGen.ts` | calc | `TxGenPlan`, `TXGEN_DEFAULTS`, `txGenPlanOf`, `DEWA_TRANSFORMER_KVA`, `sizesOf`, `typicalImpedancePct`, `transformerChecks`, `sizeTransformers`, `applyTransformer`, `sizeGeneratorByBoards` | Main sizing engine for transformers per MDB and the generator from boards |
 | `src/calc/sizing.ts` | calc | `STANDARD_TRANSFORMER_KVA`, `STANDARD_GENERATOR_KVA`, `chooseGenerator`, `generatorRatedKw`, `generatorForBoard`, `generatorChoiceForBoard`, `isEssential`, `standbyBoards`, `essentialFeeders`, legacy `sizeTransformer`, `sizeGenerator` | Standard size lists, generator selection rule (kVA, kW, motor start), and older whole-project sizing (used only by tests) |
 | `src/calc/parallelTx.ts` | calc | `parallelOperation` | Load sharing, coupler current and parallel-operation conditions (IEC 60076-8) |

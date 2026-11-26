@@ -56,6 +56,8 @@ export function projectInputIssues(p: Project): InputIssue[] {
     pos(b.sourceKva, 'transformer rating', ' kVA');
     pos(b.sourceImpedancePct, 'transformer impedance', ' %');
     pos(b.sourceXr, 'transformer X/R', '');
+    pos(b.sourcePrimaryKv, 'transformer primary voltage', ' kV');
+    if (b.sourceTapPct !== undefined && b.sourceTapPct !== null && (!fin(b.sourceTapPct) || Math.abs(b.sourceTapPct) > 10)) bad.push(`transformer tap ${show(b.sourceTapPct)} % (must be between -10 and 10)`);
     const sup = b.supply;
     if (sup) {
       if (sup.kind !== undefined && !SOURCE_KINDS.some((k) => k.value === sup.kind)) bad.push(`supply kind ${show(sup.kind)} (must be one of ${SOURCE_KINDS.map((k) => k.value).join(', ')})`);

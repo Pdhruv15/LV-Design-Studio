@@ -7,7 +7,7 @@ import { breakerTypeOf, cpcOf, rcdOf } from './earthing';
 import { lightningBoqLines } from './lightningProtection';
 import { spareBreaker, spareWaysOf } from '../model/spareWays';
 import { runsOf } from './electrical';
-import { rmuRecord, rmuWays, txKv, txRatio } from './hvSupply';
+import { gridKv, rmuRecord, rmuWays, txKv, txRatio } from './hvSupply';
 import { sizeRiser } from './busbar';
 import { earthPitsByDefault } from '../diagram/supplyPoint';
 import { spareRmus } from '../diagram/mvArrangement';
@@ -210,7 +210,7 @@ export function buildBom(project: Pick<Project, 'boards' | 'feeders'> & Partial<
   for (const b of mainBoards(p).filter((x) => x.sourceKva || (x.rmu?.trim() && !x.supply))) {
     const name = b.rmu?.trim() || `RMU (${txTag(p, b.id)})`;
     const key = `${b.substation?.trim() || ''}|${name}`;
-    const r = rmus.get(key) ?? { txs: [], tees: 0, kv: txKv(p, b), named: !!b.rmu?.trim() };
+    const r = rmus.get(key) ?? { txs: [], tees: 0, kv: gridKv(p, b), named: !!b.rmu?.trim() };
     rmus.set(key, { ...r, txs: b.sourceKva && !b.existing ? [...r.txs, txTag(p, b.id) ?? b.id] : r.txs, tees: r.tees + 1 });
   }
   const addRmu = (kv: string, rec: Rmu | undefined, tees: number, who: string) => {

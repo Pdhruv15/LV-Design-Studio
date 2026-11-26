@@ -83,7 +83,7 @@ export function planBranchCopies(project: Project, branch: Branch, targets: { fl
     const boards: Board[] = branch.boards.map((b) => {
       const c: Board = { ...structuredClone(b), id: map.b.get(b.id)!, name: rename(b.name) ?? b.name };
       const loc = rename(b.location); if (loc === undefined) delete c.location; else c.location = loc;
-      if (b.id === branch.rootId) { c.upstreamId = t.parentId; delete c.supply; delete c.sourceKva; delete c.sourceImpedancePct; delete c.sourceXr; }
+      if (b.id === branch.rootId) { c.upstreamId = t.parentId; delete c.supply; delete c.sourceKva; delete c.sourceImpedancePct; delete c.sourceXr; delete c.sourcePrimaryKv; delete c.sourceTapPct; }
       else c.upstreamId = map.b.get(b.upstreamId!) ?? b.upstreamId;
       if (t.floor) c.level = t.floor.ref;
       delete c.generated;

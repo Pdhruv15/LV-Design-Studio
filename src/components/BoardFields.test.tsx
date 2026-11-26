@@ -60,3 +60,29 @@ describe('BoardFields: other buildings on this supply', () => {
     expect(host.textContent).not.toContain('Other buildings on this supply');
   });
 });
+
+describe('BoardFields: transformer voltage and tap', () => {
+  function Source({ initial }: { initial: Board }) {
+    const [b, setB] = useState(initial);
+    return <BoardFields board={b} section="source" sourceKv={22} onChange={(x) => { last = x; setB(x); }} />;
+  }
+  const select = (label: string) => [...document.querySelectorAll('label')].find((l) => l.textContent?.startsWith(label))!.querySelector('select')!;
+  const pick = (el: HTMLSelectElement, value: string) => act(() => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, value);
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  it('stores the primary voltage and the tap, and clears them on the default option', () => {
+    act(() => root.render(<Source initial={{ id: 'MDB', name: 'MDB', sourceKva: 1000 } as Board} />));
+    expect(select('Primary voltage').options[0].textContent).toBe('22 kV (source)');
+    expect(select('Tap').textContent).toContain('−2.5 % (secondary +2.56 %)');
+    pick(select('Primary voltage'), '6.6');
+    pick(select('Tap'), '-2.5');
+    expect(last.sourcePrimaryKv).toBe(6.6);
+    expect(last.sourceTapPct).toBe(-2.5);
+    pick(select('Primary voltage'), '');
+    pick(select('Tap'), '0');
+    expect(last.sourcePrimaryKv).toBeUndefined();
+    expect(last.sourceTapPct).toBeUndefined();
+  });
+});

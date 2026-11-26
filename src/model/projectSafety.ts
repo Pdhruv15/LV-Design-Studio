@@ -30,7 +30,7 @@ const okNum = (v: unknown) => v === undefined || v === null || isNum(v);
 
 /** Numeric fields that are drawn or printed. Out-of-range numbers go to the To do list; text in them is refused. */
 const PROJECT_NUM = ['schemaVersion', 'voltageV', 'frequencyHz', 'ambientC', 'vdLimitPct', 'vdTempC', 'groundTempC', 'soilResistivityKmW'];
-const BOARD_NUM = ['sourceKva', 'sourceImpedancePct', 'sourceXr', 'ratedCurrentA', 'upsKva', 'mdDemandFactor', 'elcbRatingA', 'elcbSensitivityMa'];
+const BOARD_NUM = ['sourceKva', 'sourceImpedancePct', 'sourceXr', 'sourcePrimaryKv', 'sourceTapPct', 'ratedCurrentA', 'upsKva', 'mdDemandFactor', 'elcbRatingA', 'elcbSensitivityMa'];
 const FEEDER_NUM = ['loadKw', 'demandFactor', 'powerFactor', 'lengthM', 'cableCsaMm2', 'parallel', 'breakerRatingA', 'breakerIcuKa', 'breakerImMultiple', 'cpcMm2', 'way', 'kvar', 'rcdMa', 'capSteps', 'detunedPct', 'cores'];
 const MARKUP_NUM = ['x', 'y', 'w', 'h', 'x2', 'y2', 'size'];
 const MARKUP_KINDS = new Set(['cloud', 'rect', 'line', 'arrow', 'text', 'callout']);

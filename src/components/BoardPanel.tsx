@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { form4SizeText } from '../calc/form4';
 import type { Board, Project } from '../types';
-import { izText, type FeederResult } from '../calc/electrical';
+import { gridSourceOf, izText, type FeederResult } from '../calc/electrical';
 import { boardRatedA, boardSummary } from '../calc/summary';
 import BoardFields from './BoardFields';
 import SupplyFields from './SupplyFields';
@@ -101,7 +101,7 @@ export default function BoardPanel({
                 <>
                   <h4>Transformer (supplies {head.id})</h4>
                   {!head.sourceKva && <p className="m warn">No transformer rating yet — enter it below.</p>}
-                  <BoardFields board={head} onChange={(nb) => { if (!nb.sourceKva) setHeadHeld(nb.id); onChange(nb); }} section="source" />
+                  <BoardFields board={head} onChange={(nb) => { if (!nb.sourceKva) setHeadHeld(nb.id); onChange(nb); }} section="source" sourceKv={gridSourceOf(project, head)?.kv} />
                   <p className="m">Changes here apply to every board {head.id} supplies.</p>
                 </>
               ) : (

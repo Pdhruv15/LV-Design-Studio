@@ -2,6 +2,7 @@ import { BOARD_KINDS, INCOMER_DEVICES, PANEL_SECTIONS, RELAY_TYPES, SPD_TYPES, t
 import { othersKva } from '../model/existing';
 import { findFloor, floorList, levelKey } from '../model/levels';
 import { DEFAULT_TRANSFORMER_XR } from '../calc/electrical';
+import { LV_VOLTAGES_V, MV_VOLTAGES_KV, TAP_STEPS_PCT, VECTOR_GROUPS, tapBoostPct } from '../calc/transformerVoltage';
 import { txt } from '../util/format';
 import { earthPitsByDefault } from '../diagram/supplyPoint';
 
@@ -12,11 +13,13 @@ export const BOARD_FIELD_GROUPS: [BoardFieldGroup, string][] = [['board', 'Gener
 /** Editable board fields, shared by the properties panel (applied as you
  * type) and the double-click edit dialog (applied on Save).
  * 'general': equipment data (all groups, or only `groups`); 'source': transformer data (main boards). */
-export default function BoardFields({ board, onChange, section, building, groups, earthing }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo; groups?: BoardFieldGroup[]; earthing?: EarthingPlan }) {
+export default function BoardFields({ board, onChange, section, building, groups, earthing, sourceKv }: { board: Board; onChange: (b: Board) => void; section: 'general' | 'source'; building?: BuildingInfo; groups?: BoardFieldGroup[]; earthing?: EarthingPlan; sourceKv?: number }) {
   const show = (g: BoardFieldGroup) => !groups || groups.includes(g);
   // A heading over each group when a tab shows more than one (the tab name already says it otherwise).
   const head = (g: BoardFieldGroup) => (!groups || groups.length > 1) && <h4 className="kv-head">{BOARD_FIELD_GROUPS.find(([k]) => k === g)?.[1]}</h4>;
   const floors = floorList(building);
+  const defaultKv = sourceKv && sourceKv > 0 ? sourceKv : 11; // the primary voltage when none is typed
+  const primaryKvs = [...MV_VOLTAGES_KV, ...LV_VOLTAGES_V.map((v) => v / 1000)];
   const isMain = !board.upstreamId;
   const earthDefault = earthPitsByDefault(board);
   function set<K extends keyof Board>(key: K, value: Board[K]) {
@@ -53,7 +56,19 @@ export default function BoardFields({ board, onChange, section, building, groups
         <label>Impedance Z (%){num('sourceImpedancePct', 0.1)}</label>
         <label>X/R ratio{num('sourceXr', 0.5, String(DEFAULT_TRANSFORMER_XR))}</label>
         <label>Vector group
-          <input value={board.vectorGroup ?? ''} placeholder="Dyn11" onChange={(e) => set('vectorGroup', e.target.value.trim() || undefined)} />
+          <input value={board.vectorGroup ?? ''} placeholder="Dyn11" list={`vector-groups-${board.id}`} onChange={(e) => set('vectorGroup', e.target.value.trim() || undefined)} />
+          <datalist id={`vector-groups-${board.id}`}>{VECTOR_GROUPS.map((g) => <option key={g} value={g} />)}</datalist>
+        </label>
+        <label>Primary voltage
+          <select value={board.sourcePrimaryKv ?? ''} onChange={(e) => set('sourcePrimaryKv', e.target.value === '' ? undefined : +e.target.value)}>
+            <option value="">{`${defaultKv} kV (source)`}</option>
+            {[...MV_VOLTAGES_KV, ...LV_VOLTAGES_V.map((v) => v / 1000), ...(board.sourcePrimaryKv && !primaryKvs.includes(board.sourcePrimaryKv) ? [board.sourcePrimaryKv] : [])].map((kv) => <option key={kv} value={kv}>{kv >= 3 ? `${kv} kV` : `${Math.round(kv * 1000)} V`}</option>)}
+          </select>
+        </label>
+        <label>Tap
+          <select value={board.sourceTapPct ?? 0} onChange={(e) => set('sourceTapPct', +e.target.value === 0 ? undefined : +e.target.value)}>
+            {TAP_STEPS_PCT.map((t) => <option key={t} value={t}>{t === 0 ? '0 % (principal)' : `${t > 0 ? '+' : '−'}${Math.abs(t)} % (secondary ${tapBoostPct({ sourceTapPct: t } as Board) > 0 ? '+' : '−'}${Math.abs(tapBoostPct({ sourceTapPct: t } as Board)).toFixed(2)} %)`}</option>)}
+          </select>
         </label>
       </div>
     );
