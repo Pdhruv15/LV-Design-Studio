@@ -34,6 +34,8 @@ export function addCircuit(project: Project, boardId: string, phase?: Phase, way
     cableCsaMm2: 2.5, cores: slot.phase === 'RYB' ? 4 : 2,
     breakerRatingA: 16, breakerIcuKa: 10, breakerType: 'C'
   };
+  // A DB re-grouped as "RCBO on every circuit" gives new circuits an RCBO too.
+  if (project.boards.find((b) => b.id === boardId)?.rcboEveryCircuit) f.rcbo = true;
   const withF = { ...project, feeders: [...project.feeders, f] };
   return { project: replaceFeeder(withF, id, refresh(withF, f)), id };
 }
@@ -115,7 +117,7 @@ export function refreshBoard(project: Project, boardId: string): Project {
  * then take the free slots after the circuits. */
 export function balancePhases(project: Project, boardId: string): Project {
   const board = project.boards.find((b) => b.id === boardId);
-  const hand = board?.elcbs ?? [];
+  const hand = (board?.elcbs ?? []).filter((h) => !h.incomer); // the ELCB at the incomer covers whatever way a circuit takes
   const covered = (w: number) => hand.some((h) => h.fromWay <= w && w <= h.toWay);
   const all = scheduleCircuits(project, boardId);
   const circuits = all.filter((f) => !covered(f.way!));

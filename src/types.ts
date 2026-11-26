@@ -540,10 +540,14 @@ export interface Board {
   /** Ways with no ELCB of their own are also cut where lighting and power circuits meet, so a new ELCB never mixes them.
    * Set when the DB's ELCBs are first changed (nothing on the schedule moves then) and by Re-group all ELCBs. */
   elcbKeepApart?: boolean;
+  /** "RCBO on every circuit" (Re-group): circuits added later get an RCBO too. Cleared by another Re-group or New ELCBs size. */
+  rcboEveryCircuit?: boolean;
 }
 
-/** An ELCB (RCCB) placed by hand over whole ways of a DB (R, Y and B of each way). */
-export interface BoardElcb { id: string; fromWay: number; toWay: number; poles?: 3 | 4; ratingA?: number; sensitivityMa?: number; rcdType?: RcdType }
+/** An ELCB (RCCB) placed by hand over whole ways of a DB (R, Y and B of each way). With `incomer` it is the one ELCB at
+ * the DB's incomer: it covers every way (ways added later too) and the RCBOs below it; `sType` makes it time-delayed
+ * (S-type), unset = Auto (S-type when RCBOs of a lower IΔn sit below it). */
+export interface BoardElcb { id: string; fromWay: number; toWay: number; poles?: 3 | 4; ratingA?: number; sensitivityMa?: number; rcdType?: RcdType; incomer?: true; sType?: boolean }
 
 /** One CAD block name → the library item (Loads.xlsx reference) it is, and how many it counts as (twin socket: 2). */
 export interface CadBlockMap { block: string; reference: string; per?: number }

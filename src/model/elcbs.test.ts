@@ -208,7 +208,7 @@ describe('every ELCB is its own device', () => {
     expect(pv.before).toEqual([3, 3, 6]);
     expect(pv.after).toEqual([6, 6, 6]);
     expect(pv.moved).toBeGreaterThan(0);
-    expect(regroupPreview(p, 'DB', { size: 12, keepApart: false, keepRcbos: true })).toEqual({ before: [3, 3, 6], after: [12], moved: 0 });
+    expect(regroupPreview(p, 'DB', { size: 12, keepApart: false, keepRcbos: true })).toMatchObject({ before: [3, 3, 6], after: [12], moved: 0 });
   });
 
   it('Balance phases keeps every circuit and spare inside its own ELCB', () => {
@@ -538,5 +538,104 @@ describe('schedule documents', () => {
     const p = db(9);
     expect(buildLoadScheduleHtml(allAutomatic(p, 'DB'), 'DB')).toBe(buildLoadScheduleHtml(p, 'DB'));
     expect(buildLoadScheduleHtml(p, 'DB')).not.toContain('RCBO');
+  });
+});
+
+describe('Whole-board schemes in Re-group', () => {
+  const incomerOf = (p: Project) => elcbGroups(p, board(p)).find((g) => g.incomer);
+  const power = (p: Project, id: string) => updateCircuit(p, id, { points: { s13: 4 } });
+
+  it('one ELCB at the incomer covers every way, new ways too, rated for the incomer and moving no circuit', () => {
+    const p0 = db(12);
+    const p = regroupElcbs(p0, 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' });
+    expect(ways(p)).toEqual([[1, 2, 3, 4]]);
+    expect(incomerOf(p)).toMatchObject({ index: 1, ratingA: 100, sensitivityMa: 100, poles: 4, sType: false, label: '100 A 100 mA 4P' });
+    expect(board(p).elcbGroupSize).toBe(0);
+    expect(scheduleCircuits(p, 'DB').map((f) => f.id)).toEqual(scheduleCircuits(p0, 'DB').map((f) => f.id));
+    const r = addCircuit(addCircuit(addCircuit(p, 'DB').project, 'DB').project, 'DB').project;
+    expect(ways(r)).toEqual([[1, 2, 3, 4, 5]]);
+    // New empty circuits count as power, so the ELCB at the incomer now gives them 30 mA.
+    expect(incomerOf(r)!.sensitivityMa).toBe(30);
+    expect(rcdOf(r, r.feeders.find((f) => f.id === 'DB-R5')!)).toBe(30);
+  });
+
+  it('is S-type when 30 mA RCBOs sit below it, and 100 mA over RCBOs alone', () => {
+    let p = power(db(12), 'DB-R1');
+    p = setRcbo(p, 'DB-R1', true);
+    p = regroupElcbs(p, 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' });
+    expect(rcbosOf(p, board(p)).map((r) => [r.name, r.sensitivityMa])).toEqual([['RCBO-1', 30]]);
+    expect(incomerOf(p)).toMatchObject({ sensitivityMa: 100, sType: true, label: '100 A 100 mA 4P S-type' });
+    // The RCBO circuit stays off the ELCB's circuits (one device on its way), but its load is carried.
+    expect(incomerOf(p)!.circuits.some((c) => c.id === 'DB-R1')).toBe(false);
+    expect(incomerOf(p)!.phaseKw.R).toBeGreaterThan(elcbGroups(setRcbo(p, 'DB-R1', false), board(p))[0].phaseKw.R - 0.001);
+    const bom = buildBom(p).filter((i) => i.key.startsWith('rccb:'));
+    expect(bom.map((i) => [i.key, i.qty])).toEqual([['rccb:100:TP+N:100:S', 1]]);
+    expect(bom[0].description).toContain('S-type (time-delayed)');
+    let all = db(3);
+    for (const id of ['DB-R1', 'DB-Y1', 'DB-B1']) all = setRcbo(all, id, true, 30);
+    all = regroupElcbs(all, 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' });
+    expect(incomerOf(all)).toMatchObject({ sensitivityMa: 100, sType: true });
+  });
+
+  it('is 30 mA and not S-type when a power circuit without an RCBO is under it', () => {
+    let p = power(power(db(12), 'DB-R1'), 'DB-Y1');
+    p = setRcbo(p, 'DB-R1', true);
+    p = regroupElcbs(p, 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' });
+    expect(incomerOf(p)).toMatchObject({ sensitivityMa: 30, sType: false });
+  });
+
+  it('is edited in place (mA, S-type), never resized, and no other ELCB can be placed next to it', () => {
+    const p = regroupElcbs(db(12), 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' });
+    const r = editElcbAt(p, 'DB', 2, { fromWay: 2, toWay: 2, sensitivityMa: 300, sType: true });
+    expect(ways(r.project)).toEqual([[1, 2, 3, 4]]);
+    expect(incomerOf(r.project)!.label).toBe('100 A 300 mA 4P S-type');
+    expect(r.message).toBe('ELCB-1 at the incomer: 100 A 300 mA 4P S-type');
+    expect(() => resizeElcb(p, 'DB', 1, 6)).toThrow(/one ELCB at the incomer/);
+    expect(() => addBoardElcb(p, 'DB', { fromWay: 2, toWay: 2 })).toThrow(/Re-group all ELCBs/);
+    expect(balancePhases(p, 'DB').feeders.length).toBe(p.feeders.length);
+    expect(ways(removeElcbAt(p, 'DB', 1))).toEqual([]);
+  });
+
+  it('prints on the schedule, the PDF and the Excel sheet as ELCB-1 over every circuit', () => {
+    let p = power(db(9), 'DB-Y2');
+    p = setRcbo(p, 'DB-Y2', true);
+    p = regroupElcbs(p, 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' });
+    const t = scheduleTable(p, 'DB');
+    expect(t.rows.map((r) => r[2]).filter(Boolean).map((s) => s.split(' ')[0])).toEqual(['ELCB-1', 'RCBO-1', 'ELCB-1']);
+    expect(buildLoadScheduleHtml(p, 'DB')).toContain('100 A 100 mA 4P S-type');
+    const sheet = buildDbSheet(p, 'DB');
+    const e = sheet.sheetCols.findIndex((c) => c.key === 'elcb');
+    expect(sheet.data.map((r) => String(r[e])).filter((l) => l.startsWith('ELCB-1 '))[0]).toBe('ELCB-1 100 A 100 mA 4P S-type');
+  });
+
+  it('warns when the incomer is above the largest ELCB', () => {
+    const p = { ...db(6), feeders: db(6).feeders.map((f) => (f.id === 'INC' ? { ...f, breakerRatingA: 160 } : f)) };
+    const v = regroupPreview(p, 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' });
+    expect(v.incomer).toBe('ELCB-1 125 A 100 mA 4P');
+    expect(v.warning).toMatch(/incomer is 160 A and an ELCB goes up to 125 A/);
+    expect(regroupPreview(db(6), 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'incomer' }).warning).toBeUndefined();
+  });
+
+  it('RCBO on every circuit: every circuit and every new one gets an RCBO, kept devices stay, until a size is chosen', () => {
+    let p = db(6);
+    p = setRcbo(p, 'DB-R1', true, undefined, 'afdd');
+    p = setNoRcd(p, 'DB-Y1', 'Fire alarm panel');
+    p = regroupElcbs(p, 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'rcbo' });
+    expect(ways(p)).toEqual([]);
+    expect(board(p)).toMatchObject({ elcbGroupSize: 0, rcboEveryCircuit: true });
+    expect(rcbosOf(p, board(p)).map((r) => [r.circuit.id, r.kind])).toEqual([['DB-R1', 'afdd'], ['DB-B1', 'rcbo'], ['DB-R2', 'rcbo'], ['DB-Y2', 'rcbo'], ['DB-B2', 'rcbo']]);
+    expect(scheduleCircuits(p, 'DB').find((f) => f.id === 'DB-Y1')?.noRcd).toBe('Fire alarm panel');
+    const added = addCircuit(p, 'DB');
+    expect(isRcbo(added.project.feeders.find((f) => f.id === added.id)!)).toBe(true);
+    expect(regroupPreview(db(6), 'DB', { size: 6, keepApart: true, keepRcbos: true, scheme: 'rcbo' })).toMatchObject({ after: [], rcbos: 6, moved: 0 });
+    const sized = setNewElcbSize(p, 'DB', 6);
+    expect(board(sized).rcboEveryCircuit).toBeUndefined();
+    const plain = addCircuit(sized, 'DB');
+    expect(isRcbo(plain.project.feeders.find((f) => f.id === plain.id)!)).toBe(false);
+    const fresh = regroupElcbs(p, 'DB', { size: 6, keepApart: false, keepRcbos: false, scheme: 'rcbo' });
+    expect(rcbosOf(fresh, board(fresh)).map((r) => r.kind)).toEqual(['rcbo', 'rcbo', 'rcbo', 'rcbo', 'rcbo', 'rcbo']);
+    const back = regroupElcbs(p, 'DB', { size: 6, keepApart: false, keepRcbos: false });
+    expect(board(back).rcboEveryCircuit).toBeUndefined();
+    expect(ways(back)).toEqual([[1, 2]]);
   });
 });

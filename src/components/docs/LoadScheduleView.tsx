@@ -313,7 +313,7 @@ export default function LoadScheduleView({
         onStatus(`${f ? circuitRef(f) : ''}: no RCD (${v.reason})${was ? `; it leaves ELCB-${was.index}` : ''}. Its earth fault check rests on the MCB alone`);
         return undefined;
       }
-      const body = { fromWay: v.fromWay, toWay: v.toWay, poles: v.poles === 3 ? 3 as const : undefined, ratingA: v.ratingA, sensitivityMa: v.sensitivityMa, rcdType: v.rcdType };
+      const body = { fromWay: v.fromWay, toWay: v.toWay, poles: v.poles === 3 ? 3 as const : undefined, ratingA: v.ratingA, sensitivityMa: v.sensitivityMa, rcdType: v.rcdType, sType: v.sType };
       const r = target.at !== undefined ? editElcbAt(project, board.id, target.at, body) : addBoardElcb(project, board.id, body);
       onChange(r.project, { step: true });
       onStatus(r.message);
@@ -334,7 +334,7 @@ export default function LoadScheduleView({
   };
   const regroup = (o: Parameters<typeof regroupElcbs>[2]) => {
     onChange(regroupElcbs(project, board.id, o), { step: true });
-    onStatus(`${board.id}: ELCBs re-grouped${o.size ? ` into ${o.size} circuits each` : ': no ELCB'}`);
+    onStatus(`${board.id}: ELCBs re-grouped${o.scheme === 'incomer' ? ': one ELCB at the incomer' : o.scheme === 'rcbo' ? ': an RCBO on every circuit' : o.size ? ` into ${o.size} circuits each` : ': no ELCB'}`);
   };
   const removeCircuit = async (r: { f: { id: string }; ref: string }) => {
     if (await ask(`Delete circuit ${r.ref}?`)) onChange(deleteCircuit(project, r.f.id));
@@ -509,7 +509,7 @@ export default function LoadScheduleView({
                   {activeGroup && (
                     <>
                       <div className="mp-h">ELCB-{activeGroup.index} · {elcbWaysText(activeGroup.ways)} · size</div>
-                      <ElcbSizes group={activeGroup} onPick={(n) => { close(); resize(activeGroup, n); }} />
+                      {!activeGroup.incomer && <ElcbSizes group={activeGroup} onPick={(n) => { close(); resize(activeGroup, n); }} />}
                       <button onClick={() => { close(); editElcb(activeGroup); }}>Edit ELCB-{activeGroup.index}…</button>
                       <button title="Its ways take the New ELCBs size" onClick={() => { close(); removeElcb(activeGroup); }}>Remove ELCB-{activeGroup.index}</button>
                       <hr />
