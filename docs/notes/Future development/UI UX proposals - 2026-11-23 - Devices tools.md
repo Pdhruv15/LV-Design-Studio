@@ -70,7 +70,7 @@ As they were asked:
 - **C. New tools.** All six in the order of the build steps (recommended). Any to drop, or to move up?
 - **D. A circuit at its maximum.** Warn and offer the next circuit with room (recommended; it matches the warn-only rule built for moving devices, still open in the Device edit tools note), or stop placing at the maximum?
 - **E. Typical levels.** A typical level has one plan and one set of devices for all its floors, while each floor has its own boards. Should Copy to levels also put the same points on the boards of the other floors of a typical level? Recommended: decide with step 6, after a look at the load schedule side. **Decided with step 6 (v2.312): no.** Copy to levels works plan to plan and a typical level is one plan: the board chosen takes the points, the boards of its other floors are not changed. Putting the same points on those boards needs a link between the boards of a typical level on the load schedule side: a separate proposal, not built.
-- **F. Colours.** Give ELV devices a colour of their own on Graphite, or leave them as they are? Recommended: a small proposal of its own, with samples.
+- **F. Colours.** Give ELV devices a colour of their own on Graphite, or leave them as they are? Recommended: a small proposal of its own, with samples. **Proposal written (2026-11-26):** `UI UX proposals - 2026-11-26 - ELV device colour.md`.
 
 ## Build steps
 
