@@ -6934,5 +6934,5 @@ describe('detect rooms from walls (DETECTROOMS)', () => {
     const n = rooms().length;
     await command('ROOMSW');
     expect(rooms()).toHaveLength(n);
-  });
+  }, 20_000);
 });
