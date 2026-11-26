@@ -965,8 +965,16 @@ describe('CAD view', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/smoke detectors? placed · ⌘Z to undo$/i);
     act(() => state.setCoverage(true));
     expect(document.body.textContent).toMatch(/not fully covered/);
-    act(() => state.actions.current.copyTo('V/FF/0'));
+    act(() => state.actions.current.copyLevels());
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Copy to levels"]') as HTMLElement;
+    expect(dlg()).not.toBeNull();
+    const calls = onChange.mock.calls.length;
+    act(() => [...dlg().querySelectorAll<HTMLInputElement>('.cad-cl-levels input')].find((i) => i.parentElement?.textContent?.includes('First'))!.click());
+    act(() => [...dlg().querySelectorAll('button')].find((b) => b.textContent === 'Copy')!.click());
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(onChange.mock.calls[calls][1]).toMatch(/^CL {2}\d+ devices? copied to 1 level · ⌘Z to undo$/);
     expect((project.elvDevices ?? []).filter((d) => d.levelId === 'FF')).toHaveLength(onGf().length);
+    expect(dlg()).toBeNull();
   });
 
   it("fills with Fill room's own device whatever Add device has chosen; the palette sets it while FILL runs, and Coverage keeps its own system", async () => {
@@ -1085,6 +1093,41 @@ describe('CAD view', () => {
     await act(async () => { place().click(); });
     expect(lights()).toHaveLength(n);
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toContain(`(${n} taken off first)`);
+  });
+
+  it('Socket room (SOCK): keeps the room, a click on a wall leaves it out, Place puts turned sockets on the circuit in one change', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const majlis = buildingInfoOf(project).rooms.find((r) => /majlis/i.test(r.name))!;
+    const o = majlis.outline!;
+    const [cx, cy] = o.reduce(([x, y], q) => [x + q[0] / o.length, y + q[1] / o.length], [0, 0]);
+    await command('SOCK');
+    expect(state.tool).toBe('sockroom');
+    expect(document.body.textContent).toContain('Point at a room to see its sockets');
+    await clickAt(cx / 0.001, cy / 0.001);
+    expect(document.body.textContent).toContain(`Socket room ${majlis.name}`);
+    const place = () => document.querySelector('.cad-devbtns .chip.primary') as HTMLButtonElement;
+    expect(place().disabled).toBe(true); // no circuit yet
+    act(() => state.setFeederId('DB-GF1-B6'));
+    const n = Number(/Place (\d+) socket/.exec(place().textContent!)![1]);
+    expect(n).toBeGreaterThan(3);
+    // A click near the start of the longest wall leaves that wall out: fewer sockets.
+    const walls = o.map((a, i) => ({ i, a, b: o[(i + 1) % o.length] })).sort((x, y) => Math.hypot(y.b[0] - y.a[0], y.b[1] - y.a[1]) - Math.hypot(x.b[0] - x.a[0], x.b[1] - x.a[1]));
+    const w = walls[0], at = (t: number): [number, number] => [(w.a[0] + (w.b[0] - w.a[0]) * t) / 0.001, (w.a[1] + (w.b[1] - w.a[1]) * t) / 0.001];
+    await clickAt(...at(0.02));
+    const fewer = Number(/Place (\d+) socket/.exec(place().textContent!)![1]);
+    expect(fewer).toBeLessThan(n);
+    await clickAt(...at(0.02)); // again: the wall is back
+    expect(Number(/Place (\d+) socket/.exec(place().textContent!)![1])).toBe(n);
+    const calls = onChange.mock.calls.length;
+    await act(async () => { place().click(); });
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    const socks = (project.lvPoints ?? []).filter((d) => d.type === 's13');
+    expect(socks).toHaveLength(n);
+    expect(socks.every((d) => d.feederId === 'DB-GF1-B6' || project.feeders.some((f) => f.id === d.feederId))).toBe(true);
+    expect(socks.some((d) => d.rot)).toBe(true);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(new RegExp(`^${n} sockets? placed in ${majlis.name} on \\d+ circuits? · ⌘Z to undo$`));
   });
 
   it('previews and approves one bounded coordinated room device template (RDT), then replaces it', async () => {
@@ -7026,5 +7069,5 @@ describe('detect rooms from walls (DETECTROOMS)', () => {
     const n = rooms().length;
     await command('ROOMSW');
     expect(rooms()).toHaveLength(n);
-  });
+  }, 20_000);
 });

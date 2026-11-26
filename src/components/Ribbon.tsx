@@ -6,7 +6,7 @@ import {
   Gauge, Hand, LayoutGrid, ListTree, MousePointer2, Pencil, Receipt, Scale, Settings2, ShieldCheck, Sun,
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
-import { ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
+import { PlugZap, ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
 import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass, RefreshCw } from 'lucide-react';
 import { VP_ARRANGEMENTS, VP_SCALES } from '../model/planViewports';
 import { FileJson, LayoutPanelLeft, Maximize2, Square, AlignStartVertical } from 'lucide-react';
@@ -209,14 +209,14 @@ export interface RibbonActions {
     panelOrder?: string[]; onPanelOrder?: (order: string[]) => void;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
-    onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
+    onCoverage: () => void; coverageOn: boolean; onCopyLevels: () => void;
     /** Add device: the device it places, the devices placed last (newest first) and choosing one in the gallery (which starts DEV). */
     device?: string; recentDevices?: string[]; onDevice?: (id: string) => void;
     /** Fill room's own ELV device, and choosing it on the arrow (which starts FILL). */
     fillDevice?: ElvDeviceType; onFill?: (type: ElvDeviceType) => void;
     /** Coverage's own system, and showing one from the arrow (null: off). */
     coverageSystem?: ElvSystem; onCoverageOf?: (system: ElvSystem | null) => void;
-    /** Why Copy to level is greyed while a drawing is open. */
+    /** Why Copy to levels is greyed while a drawing is open. */
     copyWhy?: string;
     onWireAll: () => void; onTags: () => void; tagsOn: boolean;
   };
@@ -337,7 +337,7 @@ const GROUP_OF: Partial<Record<CadTool, number>> = {
   text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, insert: G.blocks, attedit: G.blocks, attpick: G.blocks, dim: G.dims, dimlin: G.dims, dimal: G.dims, qdim: G.dims, dimspace: G.dims, dimcont: G.dims, dimbase: G.dims, dimrad: G.dims, dimdia: G.dims, dimang: G.dims, leader: G.leaders, mleader: G.leaders, mleaderadd: G.leaders, mleaderremove: G.leaders, mleaderalign: G.leaders, mleadercollect: G.leaders, rtag: G.leaders, rtall: G.leaders, north: G.drawnMarkup, keynote: G.leaders,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
-  dev: G.devices, fill: G.devices, lux: G.devices, check: G.level, roomtemplate: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
+  dev: G.devices, fill: G.devices, lux: G.devices, sockroom: G.devices, check: G.level, roomtemplate: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
 };
 /** Under Text's arrow: Text and Numbered text, then the tools that change the texts picked (typed-only before v2.072). */
 const TEXT_TOOLS: [CadTool, string, string][] = [
@@ -1095,6 +1095,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           pop: a.cad?.onDevice ? (close) => <CadDeviceGallery device={a.cad!.device ?? ''} recent={a.cad!.recentDevices ?? []} onPick={(id) => { close(); a.cad!.onDevice!(id); }} onClose={close} /> : undefined },
         { ...cadTool('fill', 'Fill room', Grid3x3, 'Point at a room to see the device chosen on the arrow at its coverage spacing, click to place them all (FILL)'), why: NO_DRAWING, menu: fillMenu },
         { ...cadTool('lux', 'Light room', Lightbulb, 'Point at a room: its luminaires by the lumen method for its outline, then placed as lights on a circuit (LUX)'), why: NO_DRAWING },
+        sm({ ...cadTool('sockroom', 'Socket room', PlugZap, 'Point at a room: sockets along its walls at the spacing set, each facing into the room; click a wall to leave it out, a socket to take it off (SOCK)'), why: NO_DRAWING }),
         sm({ ...cadTool('roomtemplate', 'Room devices', LayoutTemplate, 'Click one room, preview a bounded LV and ELV device template, then approve it (RDT)'), why: NO_DRAWING }),
         sm({ ...cadTool('em', 'Emergency', DoorOpen, 'Emergency lighting (BS 5266-1 / EN 1838): draw the escape routes, mark the points of emphasis and open areas; fittings and exit signs are placed at their spacing (EM)'), why: NO_DRAWING })
       ],
@@ -1102,7 +1103,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         sm({ ...cadTool('check', 'Check level', ClipboardCheck, 'One list for this level: rooms short of lights or with no socket, circuits over the Rules sheet, devices outside a room, ELV coverage gaps and boards not on the plan (CHK)'), why: NO_DRAWING }),
         sm({ label: 'Coverage', icon: CircleDashed, cmd: 'COV', title: 'Show what the devices of the system chosen on the arrow cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing, why: NO_DRAWING, menu: coverageMenu }),
-        sm({ label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, why: a.cad?.hasDrawing ? a.cad.copyWhy : NO_DRAWING, menu: a.cad?.copyLevels })
+        sm({ label: 'Copy to levels', icon: Copy, cmd: 'CL', title: "Copy this level's lights, sockets, switches and ELV devices to other levels: same plan positions, same ways of the boards you choose (CL)", onClick: () => a.cad?.onCopyLevels(), disabled: !a.cad?.hasDrawing || !!a.cad.copyWhy, why: a.cad?.hasDrawing ? a.cad.copyWhy : NO_DRAWING })
       ],
       [
         sm(cadTool('none', 'Select', BoxSelect, 'Select devices (SEL): click one, Shift-click to add or remove, or drag a window — left to right picks what is inside, right to left also what it crosses; a toolbar beside them has the edits that suit them', 'SEL')),

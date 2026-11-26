@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../../types';
-import { canFill, copyTo, coverageGaps, coverageNote, deviceNear, elvLayer, FILL_MAX, fillAt, fillRooms, moveTo, placeAt, remove, rotate } from './elvPlan';
+import { canFill, copySystems, coverageGaps, coverageNote, deviceNear, elvLayer, FILL_MAX, fillAt, fillRooms, moveTo, placeAt, remove, rotate, systemCounts } from './elvPlan';
 
 const box = (x1: number, y1: number, x2: number, y2: number): [number, number][] => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
 const L1 = { building: 'B', level: 'L1' };
@@ -78,10 +78,23 @@ describe('ELV layer of the Floor plan page', () => {
     expect(moveTo(p, 'E1', [25, 2]).message).toBe('CCTV camera E1 moved outside every room outline · ⌘Z to undo');
     p = rotate(p, 'E1', -90).next;
     expect(p.elvDevices![0].rotationDeg).toBe(270);
-    const c = copyTo(p, L1, { building: 'B', level: 'L2' }, 'cctv', 'Level 2');
-    expect(c.message).toBe('1 device copied to Level 2 (1 in a room of the same name) · ⌘Z to undo');
-    expect(copyTo(p, L1, { building: 'B', level: 'L2' }, 'fire-alarm', 'Level 2').message).toBe('No fire alarm devices on this level to copy.');
     expect(remove(p, 'E1').next.elvDevices).toEqual([]);
+  });
+
+  it('counts the devices of each system and copies the systems chosen to another level, with Replace taking off what is there', () => {
+    const L2 = { building: 'B', level: 'L2' };
+    let p = placeAt(project(), L1, 'camera', [2, 2]).next;
+    p = placeAt(p, L1, 'smoke-detector', [4, 4]).next;
+    expect(systemCounts(p, L1).map((x) => [x.system, x.n])).toEqual([['fire-alarm', 1], ['cctv', 1], ['access-control', 0], ['ict', 0], ['public-address', 0]]);
+    const c = copySystems(p, L1, L2, ['cctv'], false);
+    expect(c).toMatchObject({ copied: 1, removed: 0 });
+    expect(systemCounts(c.next, L2).find((x) => x.system === 'cctv')!.n).toBe(1);
+    expect(systemCounts(c.next, L2).find((x) => x.system === 'fire-alarm')!.n).toBe(0);
+    const again = copySystems(c.next, L1, L2, ['cctv'], false);
+    expect(systemCounts(again.next, L2).find((x) => x.system === 'cctv')!.n).toBe(2);
+    const r = copySystems(again.next, L1, L2, ['cctv'], true);
+    expect(r).toMatchObject({ copied: 1, removed: 2 });
+    expect(systemCounts(r.next, L2).find((x) => x.system === 'cctv')!.n).toBe(1);
   });
 
   it('describes the coverage a device is placed by', () => {

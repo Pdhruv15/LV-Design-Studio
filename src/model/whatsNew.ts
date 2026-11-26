@@ -18,10 +18,22 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.312', date: '2026-11-26',
+    version: '2.313', date: '2026-11-26',
     items: [
       { title: 'Generator in parallel with the supply', text: 'A board with a standby generator has a new tick box, Runs in parallel with the supply. Tick it for a set that is synchronised with the supply: its fault current then adds to the supply\'s at that board, and reaches the boards above and below through the cables. Left unticked (a set behind a changeover) nothing changes.' },
       { title: 'Motor contribution to fault levels', text: 'Project settings has a new switch, Fault levels: include the contribution of running motors. With it on, each motor adds 5 × its rated current, behind its own cable, to the fault level at its board and, through the cables, at the other boards. Motors on a variable speed drive are left out. It is off unless you turn it on, so existing projects keep their numbers. Both additions show as rows in the per-unit table of the short circuit report.' }
+    ]
+  },
+  {
+    version: '2.312', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: Copy to levels', text: 'Level → Copy to levels (CL) now opens a window: tick what to copy (lights, sockets and equipment; switches and boxes; each ELV system) and the levels to copy to. For each board of this level choose the board on the other level: a light or socket goes on the same way of that board and counts on that circuit, as placing it by hand does. Where the way is missing, its devices are listed and left out. Replace first takes off what those levels already hold. One undo step for all levels. A typical level is one plan: the boards of its other floors are not changed.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.310', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Socket room', text: 'Devices → Socket room (SOCK): point at a room to see sockets along its walls at the spacing you set, each turned to face into the room. Click a wall to leave it out, click a socket to take it off, then Place. The panel shows the circuits used before placing: 13 A sockets go on to the next circuit with room at the most the Rules sheet allows. Also on a room\'s right-click list.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

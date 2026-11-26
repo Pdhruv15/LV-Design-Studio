@@ -60,7 +60,7 @@ import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, isElvType, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
-import { canFill, copyTo, coverageGaps, coverageNote, elvLayer, fillAt, fillRooms, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
+import { canFill, coverageGaps, coverageNote, elvLayer, fillAt, fillRooms, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { safeFileName, saveBinary, saveBinaryAt, savePdf, saveText } from '../../util/files';
 import { angleDeg, areaOf, boxOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -76,6 +76,7 @@ import CadTabs from './CadTabs';
 import LevelCheckPanel from './LevelCheckPanel';
 import { checkLevel, type LevelFinding } from '../../model/levelCheck';
 import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './RoomLightingPanel';
+import SocketRoomPanel, { SOCK_START, socketItemOf, type SockSettings } from './SocketRoomPanel';
 import { placeRoomLights } from '../../model/roomLights';
 import RoomDeviceTemplatePanel from './RoomDeviceTemplatePanel';
 import { approveLvRoomTemplate, proposeLvRoomTemplate, type RoomDeviceTemplateKind, type RoomDeviceTemplateScope } from '../../model/roomDeviceTemplate';
@@ -106,6 +107,7 @@ import { patchTable, TABLE_WIDTH, tableId, tableName, tablesOf, withTables, type
 import { layoutExtent, layoutPaper, layoutRegion, layoutViewports, PLAN_LABEL, PLAN_TYPES, planLegendLabels, planScale as sheetScale } from '../../docs/planLayout';
 import { drawingLayoutFromTemplate, layoutsFromTemplates, loadLayoutTemplates, saveLayoutTemplates, sheetWithTemplate, templateFromFileLayout, templateFromPaper, templateFromSheet, withLayoutTemplate, type LayoutTemplate } from '../../model/layoutTemplates';
 import { layoutDesign, layoutPlotHtml } from '../../docs/layoutPlot';
+import { CopyLevelsDialog } from './CopyLevelsDialog';
 import { ImportLayoutsDialog, LayoutManagerDialog, LayoutPaperDialog, LayoutPlotDialog, LayoutTemplatesDialog, ScaleListDialog } from './CadLayoutDialogs';
 import { applySetupManaged, copyManaged, deleteManaged, managerRows, moveManaged, renameManaged, type ManagerCtx } from './cadLayoutManager';
 import { setupsOf, tablesOf as penTablesOf } from '../../model/plotSetup';
@@ -121,6 +123,7 @@ import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
 import { floorLabel, floorList, type Floor } from '../../model/levels';
 import { circuitRoom, nextWithRoom, pointMax } from '../../model/circuitRoom';
+import { circuitsWithoutRoomSockets, placeRoomSockets, shareSockets, socketLayout, wallNear } from '../../model/roomSockets';
 import { planRoomLights, planRoomSets, ROOM_SCOPE_MAX, roomsInScope, scopeCounts, type RoomScope } from '../../model/roomScope';
 import RoomScopeButtons from './RoomScopeButtons';
 import CircuitPicker from './CircuitPicker';
@@ -183,6 +186,7 @@ const PROMPT: Record<CadTool, string> = {
   dev: 'DEV  Specify insertion point:',
   fill: 'FILL  Click inside a room: the ELV device chosen is placed at its coverage spacing:',
   lux: 'LUX  Point at a room to see its lights by the lumen method, click to keep them:',
+  sockroom: 'SOCK  Click inside a room: its sockets along the walls, then Place:',
   roomtemplate: 'RDT  Click one room to preview its coordinated LV and ELV devices:',
   em: 'EM  Escape route: click its points from the far end to the exit, Enter to finish:',
   arl: 'ARL  Array on line: click the start of the line:',
@@ -445,6 +449,11 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // Light room (LUX): the room kept (its lights stay previewed while the panel is edited) and the panel's settings.
   const [luxRoom, setLuxRoom] = useState<string | null>(null);
   const [luxSet, setLuxSet] = useState<LuxSettings>(LUX_START);
+  // Socket room (SOCK): the room kept, the panel's settings, the walls left out and the sockets taken off.
+  const [sockRoom, setSockRoom] = useState<string | null>(null);
+  const [sockSet, setSockSet] = useState<SockSettings>(SOCK_START);
+  const [sockSkip, setSockSkip] = useState<number[]>([]);
+  const [sockOff, setSockOff] = useState<string[]>([]);
   // All rooms like this: the rooms one run of Fill room or Light room takes; kept when the tool is left.
   const [roomScope, setRoomScope] = useState<RoomScope>('room');
   // Room devices (RDT): one selected room and one bounded, session-only preview. Only approval writes device points.
@@ -496,6 +505,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const ctxAt = useRef<{ at: Pt; room?: string } | null>(null);
   /** Light room… from a room's menu: the room LUX starts on. */
   const luxNext = useRef<string | null>(null);
+  const sockNext = useRef<string | null>(null);
   /** Crop… from a block's menu: the block CROP starts on. */
   const cropNext = useRef<CropState | null>(null);
   /** Move / Copy / Rotate from a grip's menu: the base point the tool starts with. */
@@ -631,9 +641,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // References: the manager shown, the reference being attached (its dialog, or a point being picked for it), the one
   // being clipped and whether its clip is a closed outline picked on the plan.
   const [showXR, setShowXR] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [xDraft, setXDraft] = useState<CadRef | null>(null);
   const [xClip, setXClip] = useState<{ name: string; outline: boolean } | null>(null);
-  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setRoomTemplateRoom(null); setContainmentSegment(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
+  if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setSockRoom(null); setSockSkip([]); setSockOff([]); setRoomTemplateRoom(null); setContainmentSegment(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
   const input = useRef<HTMLInputElement>(null);
   const last = rememberedDrawing(project.id);
   const units = planScale(project, view?.file, view?.info.units);
@@ -723,7 +734,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (tool === 'none') { if (takenRef.current?.seen) cancelTakeOver(); }
     else if (pickedDw.length && TAKE_OVER_TOOLS.includes(tool)) { takeOverForTool(); return; }
     const pre = preset.current;
-    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setRoomTemplateRoom(null); setContainmentSegment(null); setLvRoutePlan(null); setLvRouteSelected(0); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
+    setPoints(pointsNext.current ?? []); pointsNext.current = null; setObjectMode(false); setLuxRoom(luxNext.current); luxNext.current = null; setSockRoom(sockNext.current); sockNext.current = null; setSockSkip([]); setSockOff([]); setRoomTemplateRoom(null); setContainmentSegment(null); setLvRoutePlan(null); setLvRouteSelected(0); if (tool !== 'match') setMatchFrom(null); cad.setTextAt(null);
     setCloudPoly(false); setCloudAsk(false); setEllAxis(false); setCircleDia(false);
     setEdStep(pre); preset.current = null; setStretchBox(null); const mp = mpNext.current; mpNext.current = null; setMpFrom(mp);
     const first = picked.some((k) => k.startsWith('sk:')) || !!cad.selected?.startsWith('sk:') || ((tool === 'mirror' || tool === 'array') && pickedDw.length > 0);
@@ -957,6 +968,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     const r = lightingOf(project, room, room.id === luxOf.id ? luxSet : { ...luxSet, lux: undefined, ceil: undefined, wp: undefined });
     return r.result.invalid || !r.result.count ? undefined : { points: r.result.points, lux: r.result.achievedLux };
   }) : undefined), [project, luxOf?.id, luxSet, roomScope, circuits, cad.feederId]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
+  // Socket room: the room kept, else the one under the pointer, with its sockets along the walls and the circuits they use.
+  const sockHover = tool === 'sockroom' && !sockRoom && cursor.at && floor ? roomAtPointOf(project, floor, cursor.at, units.factor)?.id : undefined;
+  const sockOf = tool === 'sockroom' ? buildingInfoOf(project).rooms.find((r) => r.id === (sockRoom ?? sockHover)) : undefined;
+  const sockType = socketItemOf(sockSet);
+  const sockLayout = useMemo(() => (sockOf?.outline ? socketLayout(sockOf.outline, { spacingM: Number(sockSet.spacing) || 0, skip: sockSkip, off: sockOff }) : undefined), [sockOf?.id, sockSet.spacing, sockSkip, sockOff]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
+  const sockShare = useMemo(() => {
+    if (!sockLayout || !sockOf || !floor) return undefined;
+    // With Replace the sockets now in the room leave their circuits first, so their places count as free.
+    let from = circuits;
+    if (sockSet.replace) { try { from = circuitsWithoutRoomSockets(project, floor.ref, sockOf.id, circuits); } catch { from = circuits; } }
+    return shareSockets(from, cad.feederId, sockType.type, sockLayout.sockets.map((x) => x.key));
+  }, [project, floor?.key, sockOf?.id, sockLayout, sockSet.replace, sockType.type, circuits, cad.feederId]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the room, not every pointer move
   // Room template: calculate only the selected service scope, one room, with hard point limits in both helpers.
   const roomTemplateOf = tool === 'roomtemplate' ? buildingInfoOf(project).rooms.find((r) => r.id === roomTemplateRoom) : undefined;
   const lvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'elv' ? proposeLvRoomTemplate(project, roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
@@ -1024,10 +1047,13 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const arlLine: Pt[] = tool !== 'arl' ? [] : points.length >= 2 ? points.slice(0, 2) : points.length === 1 && cursor.at ? [points[0], cursor.at] : [];
   const arlAt: Pt[] = arlLine.length === 2 ? alongLine(arlLine[0].map((v) => v * units.factor) as Pt, arlLine[1].map((v) => v * units.factor) as Pt,
     arlSet.by === 'n' ? { count: Number(arlSet.value) || 0 } : { spacing: Number(arlSet.value) || 0 }, arlSet.ends) : [];
+  // Socket room: a wall left out is drawn as a line.
+  const sockSkipLines: SketchItem[] = tool !== 'sockroom' || !sockOf?.outline ? [] : sockSkip.map((w) => ({ id: `_sock${w}`, layer: '', kind: 'pline', pts: [sockOf.outline![w], sockOf.outline![(w + 1) % sockOf.outline!.length]].map(([x, y]): Pt => [x / units.factor, y / units.factor]) }));
   const emRoutes: SketchItem[] = tool !== 'em' ? [] : em.routes.map((r, i) => ({ id: `_em${i}`, layer: '', kind: 'pline', pts: r.map(([x, y]): Pt => [x / units.factor, y / units.factor]) }));
   const ghosts: CanvasDevice[] = [
     ...(elv?.symbols ?? []).filter((x) => x.ghost).map((x, i) => ({ key: `ghost${i}`, x: x.at[0], y: x.at[1], r: rUnits, shape: x.shape, text: x.text, label: '', elv: true, ghost: true })),
     ...(luxPlan ? luxPlan.rows.filter((r) => r.feederId).flatMap((r) => r.points) : lit?.result.points ?? []).map(([x, y], i) => ({ key: `lux${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: 'cross', text: '', label: '', ghost: true })),
+    ...(sockLayout?.sockets ?? []).map((q) => ({ key: `sock${q.key}`, x: q.at[0] / units.factor, y: q.at[1] / units.factor, r: rUnits, shape: sockType.item.symbol.shape, text: sockType.item.symbol.text, ...(sockType.item.symbol.plan ? { plan: sockType.item.symbol.plan, tag: sockType.item.symbol.tag, rot: q.rot } : {}), label: '', ghost: true })),
     ...roomTemplateGhosts,
     ...emGhosts,
     ...arlAt.map(([x, y], i) => ({ key: `arl${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: arlItem?.symbol.shape ?? 'cross', text: arlItem?.symbol.text ?? '', label: '', ghost: true }))
@@ -2010,7 +2036,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [optAt, setOptAt] = useState<OptAt | null>(null);
   const [publishing, setPublishing] = useState(false)
 ;
-  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setOptAt(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, showOnPlan, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
+  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setOptAt(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyLevels: () => copyLevels(), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, showOnPlan, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
   // Show on plan: once the target's drawing is the one shown, pick the target and zoom to it.
@@ -2049,6 +2075,16 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       change(r.project, `${r.ids.length} light${r.ids.length === 1 ? '' : 's'} placed in ${luxOf.name} on ${circuitLabel(project, f).split(' · ')[0]} — ${Math.round(lit.result.achievedLux)} lx${r.removed ? ` (${r.removed} taken off first)` : ''} · ⌘Z to undo`);
       setLuxRoom(null);
     } catch (e) { cad.say(`LUX  ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  /** Socket room: places the kept room's sockets on the circuits shared out, in one change. */
+  function placeSock() {
+    if (!floor || !sockOf || !sockLayout || !sockShare) return;
+    try {
+      const r = placeRoomSockets(project, floor.ref, sockOf.id, sockType.type, sockType.variant, sockLayout.sockets, sockShare, sockSet.replace);
+      const n = r.ids.length, c = sockShare.rows.length, left = sockShare.left.length;
+      change(r.project, `${n} socket${n === 1 ? '' : 's'} placed in ${sockOf.name} on ${c} circuit${c === 1 ? '' : 's'}${r.removed ? ` (${r.removed} taken off first)` : ''}${left ? ` — ${left} without a circuit with room` : ''} · ⌘Z to undo`);
+      setSockRoom(null); setSockSkip([]); setSockOff([]);
+    } catch (e) { cad.say(`SOCK  ${e instanceof Error ? e.message : String(e)}`); }
   }
   /** Room devices: approves the bounded LV and/or ELV preview in one undoable project change. */
   function approveRoomTemplate() {
@@ -2130,12 +2166,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     change(r.project, r.wired ? `${w?.tag ?? circuitLabel(project, f)} wired${w?.warning ? ` — ${w.warning}` : ''} · ⌘Z to undo` : `Wiring of ${circuitLabel(project, f).split(' · ')[0]} taken off · ⌘Z to undo`);
   }
 
-  /** Copy to level: this level's devices of the chosen ELV device's system, at the same plan positions. */
-  function copyLevel(key: string) {
-    const to = floors.find((f) => f.key === key);
-    if (!floor || !to || to.key === floor.key) return;
-    const r = copyTo(project, { building: floor.ref.building, level: floor.ref.level }, { building: to.ref.building, level: to.ref.level }, elvSystem, floorLabel(project.building, to));
-    if (r.next) change(r.next, r.message); else cad.say(`COPY  ${r.message}`);
+  /** Copy to levels (CL): opens the window that copies this level's devices to other levels. */
+  function copyLevels() {
+    if (!floor) { cad.say('CL  This drawing is not the plan of a level yet: set its level in Drafting settings (DS).'); return; }
+    setCopying(true);
   }
 
   /** Picks devices and drawn objects: one (it is the selected object, its details on the right), several, or none. */
@@ -2588,6 +2622,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     if (!room || !c || !floor) return;
     const name = room.name;
     switch (a) {
+      case 'sock': sockNext.current = room.id; if (tool === 'sockroom') { setSockRoom(room.id); setSockSkip([]); setSockOff([]); } else cad.setTool('sockroom'); setTimeout(() => cad.say(`SOCK  ${name}: set the socket, spacing and circuit, then Place.`)); return;
       case 'lux': luxNext.current = room.id; if (tool === 'lux') setLuxRoom(room.id); else cad.setTool('lux'); setTimeout(() => cad.say(`LUX  ${name}: set the luminaire and circuit, then Place.`)); return;
       case 'luxcheck': {
         const need = lightingOf(project, room, luxSet), lights = devicesInRoom(shownPlaced.filter((d) => d.what === 'lv' && typeOf(project, d) === 'ltg'), room).length;
@@ -4042,6 +4077,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       const r = lightingOf(project, room, { ...luxSet, lux: undefined, ceil: undefined, wp: undefined });
       setLuxRoom(room.id); setLuxSet((s) => ({ ...s, lux: undefined, ceil: undefined, wp: undefined }));
       cad.say(r.result.invalid ? `LUX  ${room.name}: ${r.result.invalid}` : `LUX  ${room.name}: ${r.result.count} light${r.result.count === 1 ? '' : 's'} for ${r.input.targetLux} lx — set the luminaire and circuit, then Place.`);
+    } else if (tool === 'sockroom') {
+      if (!floor) { cad.say('SOCK  Add the building and its levels in Building information first.'); return; }
+      if (sockOf?.outline && sockLayout && sockRoom) {
+        // A socket within reach of the click is taken off (or put back); else a wall within 0.3 m is left out (or taken back).
+        const reach = Math.max(rUnits, 8 * pixel);
+        const hit = sockLayout.all.filter((q) => distance(at, [q.at[0] / units.factor, q.at[1] / units.factor]) <= reach).sort((a, b) => distance(at, [a.at[0] / units.factor, a.at[1] / units.factor]) - distance(at, [b.at[0] / units.factor, b.at[1] / units.factor]))[0];
+        if (hit) { setSockOff((o) => (o.includes(hit.key) ? o.filter((k) => k !== hit.key) : [...o, hit.key])); return; }
+        const wall = wallNear(sockOf.outline, [at[0] * units.factor, at[1] * units.factor], 0.3);
+        if (wall !== undefined) setSockSkip((w) => (w.includes(wall) ? w.filter((x) => x !== wall) : [...w, wall]));
+        return;
+      }
+      const room = roomAtPointOf(project, floor, at, units.factor);
+      if (!room) { cad.say('SOCK  No room with an outline there: add it first (Room area, Trace or Rooms).'); return; }
+      const l = socketLayout(room.outline!, { spacingM: Number(sockSet.spacing) || 0, skip: [], off: [] });
+      setSockRoom(room.id); setSockSkip([]); setSockOff([]);
+      cad.say(`SOCK  ${room.name}: ${l.sockets.length} socket${l.sockets.length === 1 ? '' : 's'} on ${m(l.usedM)} of wall — click a wall to leave it out, a socket to take it off, then Place.`);
     } else if (tool === 'roomtemplate') {
       if (!floor) { cad.say('RDT  Add the building and its levels in Building information first.'); return; }
       const room = roomAtPointOf(project, floor, at, units.factor);
@@ -4728,6 +4779,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       laythw: () => allLayers('LAYTHW', { freeze: false }, 'thawed'),
       alignDevices: () => { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGNV' ? 'column' : c === 'SPACE' ? 'space' : 'row'); },
       wireAll: () => wireAll(),
+      copyLevels: () => copyLevels(),
       wireTags: () => cad.setWireTags(!cad.wireTags),
       coverage: () => cad.setCoverage(!cad.coverage),
       erase: () => removeSelected(),
@@ -5282,7 +5334,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
 
   /** The drawing: on the Model tab, or inside the viewport worked in on a layout (fitted to its window). */
   const drawCanvas = (vpProps?: Pick<React.ComponentProps<typeof CadCanvas>, 'fitBox' | 'fixed' | 'onView'>) => (
-            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? []), ...(tool === 'containment' && containmentSegment ? [containmentSegment] : [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
+            <CadCanvas view={view!} fadeExcept={reWork} draft={snapDraft} cursorMode={cursorMode} hover={hover} cutAway={cutPiece && edgeLine ? [{ ...cutPiece, id: edgeLine.id }] : undefined} meets={addPiece ? [addPiece[1]] : undefined} shadowDevices={shadow?.devs.length ? shadow.devs : undefined} movingPoints={stretchLook?.pts} panLeft={tool === 'pan'} pointStyle={pointStyleOf(project)} blocks={defs} onDrop={dropBlock} hidden={hidden} layersOn={layersOn} extents={fitExtents} toggles={snapToggles} gridDots={cad.gridDots} fitKey={cad.fitKey} onCursor={(at, snap, pixel) => setCursor({ at, snap, pixel })} onClick={click} marks={objectArea ? { points: result.points, closed: true } : marks} highlight={highlight} devices={devices} wiring={canvasWiring} sketch={sketch} selectedSketch={[...pickedSk.map((it) => it.id), ...(stretchLook?.sk.map((it) => it.id) ?? []), ...(tool === 'containment' && containmentSegment ? [containmentSegment] : [])]} extraSnaps={snapExtra} preview={[...preview, ...approvedElvRoutes, ...activeRoutePreview, ...emRoutes, ...sockSkipLines, ...(grip && cursor.at ? srcAll.filter((x) => x.id === grip.id).map((x) => gripMoved(x, grip.i, cursor.at!)) : []), ...(arlLine.length === 2 ? [{ id: '_arl', layer: '', kind: 'line' as const, pts: arlLine }] : [])]} unitsPerMm={0.001 / units.factor} labels={routeLabels} covers={elv?.covers} gaps={elv?.gaps}
               numbersTyped={valuesTyped} layerStyle={styles} refs={cmpRefs} refSnap={snapRef} windowSelect={tool === 'none' || tool === 'stretch' || tool === 'zoomwin' || tool === 'selsim' || (PICK_FIRST.includes(tool) && edPhase === 'pick') || ((tool === 'mleaderalign' || tool === 'mleadercollect') && ml?.step === 'pick') || ((tool === 'qdim' || tool === 'dimspace') && dq?.step === 'pick') || (tool === 'tcount' && tc?.step === 'pick')} onWindow={pickWindow} onContext={contextAt} onDouble={doubleClick} zoom={zoomReq} onZoomMenu={zoomMenu}
               grips={gripList} hotGrip={gripOf(hotGrip)} pickedObjects={pickedDwIds} onGripStart={(k) => setGrip(gripList[k] ? { id: gripList[k].id, i: gripList[k].i } : null)}
               onGripEnd={(k, at, moved) => {
@@ -5490,6 +5542,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           )}
           {tool === 'lux' && view && (
             <RoomLightingPanel project={project} room={luxOf} lit={lit} settings={luxSet} onSettings={setLuxSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeLux} scope={roomScope} onScope={setRoomScope} counts={luxOf ? scopeCounts(project, luxOf) : undefined} plan={luxPlan} levelName={floor ? floorLabel(project.building, floor) : undefined} typeLabel={luxOf ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === luxOf.type)?.label : undefined} onCancel={() => { setLuxRoom(null); cad.say(`Command: ${PROMPT.lux}`); }} />
+          )}
+          {tool === 'sockroom' && view && (
+            <SocketRoomPanel project={project} room={sockOf} layout={sockLayout} share={sockShare} settings={sockSet} onSettings={setSockSet} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId} onPlace={placeSock} onCancel={() => { setSockRoom(null); setSockSkip([]); setSockOff([]); cad.say(`Command: ${PROMPT.sockroom}`); }} />
           )}
           {tool === 'roomtemplate' && view && (
             <RoomDeviceTemplatePanel project={project} room={roomTemplateOf} kind={roomTemplateKind} onKind={setRoomTemplateKind} scope={roomTemplateScope} onScope={setRoomTemplateScope}
@@ -5709,6 +5764,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           units={({ 1: 'inches', 2: 'feet', 4: 'millimetres', 5: 'centimetres', 6: 'metres' } as Record<number, string>)[view?.info.units ?? 0] ?? 'drawing units'}
           onDraft={setBlockDlg} onClose={() => setBlockDlg(null)} onOk={() => { if (blockDlg.base) applyBlock(blockDlg.name, blockDlg.base, blockDlg.ids, blockDlg.mode, blockDlg.description); }}
           onPick={(what) => { pick([], what === 'objects' ? sketch.filter((it) => blockDlg.ids.includes(it.id)) : []); setBlockDlg({ ...blockDlg, picking: what }); cad.setTool('blockpick'); }} />}
+        {copying && floor && <CopyLevelsDialog project={project} from={floor} file={view?.file} onClose={() => setCopying(false)} onCopy={(next, message) => { setCopying(false); change(next, message); }} />}
         {dlg === 'ptype' && <PointStyleDialog style={pointStyleOf(project)} onClose={() => setDlg(null)}
           onSave={(s) => { setDlg(null); change({ ...project, cadPointStyle: s }, `PTYPE  Points shown as ${pointShapeLabel(s.mode).toLowerCase()}, ${s.size}${s.relative ? ' % of the view' : ' drawing units'} · ⌘Z to undo`); }} />}
         {dlg === 'style' && <TextStyleDialog styles={textStylesOf(project)} annoMm={anno.textMm} onClose={() => setDlg(null)}
