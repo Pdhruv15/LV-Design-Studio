@@ -74,4 +74,17 @@ describe('Pages beta synchronization', () => {
     expect(pages).toContain('persist-credentials: false');
     expect(pages).not.toMatch(/secrets\.|contents: write/);
   });
+
+  it('deploys in a job after the upload and looks for the artifact again instead of failing at once', () => {
+    // GitHub can list a just-uploaded artifact seconds late ("No artifacts named github-pages").
+    expect(pages).toMatch(/\n {2}build:\n/);
+    expect(pages).toMatch(/\n {2}deploy:\n {4}needs: build\n/);
+    const at = pages.indexOf('\n  deploy:');
+    const deployJob = pages.slice(at);
+    expect(deployJob).not.toContain('upload-pages-artifact');
+    expect(deployJob.match(/uses: actions\/deploy-pages@v4/g)).toHaveLength(3);
+    expect(deployJob.match(/continue-on-error: true/g)).toHaveLength(2);
+    expect(deployJob).toContain("if: steps.deployment.outcome == 'failure' && steps.retry.outcome == 'failure'");
+    expect(pages.slice(0, at)).not.toContain('deploy-pages');
+  });
 });

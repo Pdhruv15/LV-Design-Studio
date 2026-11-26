@@ -100,7 +100,7 @@ export function buildDbSheet(project: Project, boardId: string): DbSheet {
   const lastWay = Math.max(circuitRows.reduce((m, r) => Math.max(m, r.f.way!), 0), ...spares.map((s) => s.way!));
   const waysPerElcb = Math.max(1, (board.elcbGroupSize || 6) / 3);
   // One free way after the last used one, rounded up to a whole ELCB; ELCBs of the board's own reach at least their last way.
-  const ways = Math.max(waysPerElcb, Math.ceil((lastWay + 1) / waysPerElcb) * waysPerElcb, ...(board.elcbs ?? []).map((h) => h.toWay));
+  const ways = Math.max(waysPerElcb, Math.ceil((lastWay + 1) / waysPerElcb) * waysPerElcb, ...(board.elcbs ?? []).filter((h) => !h.incomer).map((h) => h.toWay));
   const rows: SheetRow[] = [{ type: 'watts' }];
   for (let way = 1; way <= ways; way++) {
     const onWay = circuitsByWay.get(way) ?? [];
