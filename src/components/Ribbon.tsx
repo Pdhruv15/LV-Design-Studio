@@ -337,7 +337,7 @@ const GROUP_OF: Partial<Record<CadTool, number>> = {
   text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, insert: G.blocks, attedit: G.blocks, attpick: G.blocks, dim: G.dims, dimlin: G.dims, dimal: G.dims, qdim: G.dims, dimspace: G.dims, dimcont: G.dims, dimbase: G.dims, dimrad: G.dims, dimdia: G.dims, dimang: G.dims, leader: G.leaders, mleader: G.leaders, mleaderadd: G.leaders, mleaderremove: G.leaders, mleaderalign: G.leaders, mleadercollect: G.leaders, rtag: G.leaders, rtall: G.leaders, north: G.drawnMarkup, keynote: G.leaders,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
-  dev: G.devices, fill: G.devices, lux: G.devices, roomtemplate: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
+  dev: G.devices, fill: G.devices, lux: G.devices, check: G.level, roomtemplate: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
 };
 /** Under Text's arrow: Text and Numbered text, then the tools that change the texts picked (typed-only before v2.072). */
 const TEXT_TOOLS: [CadTool, string, string][] = [
@@ -1100,6 +1100,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       ],
       // Level: what acts on the whole level.
       [
+        sm({ ...cadTool('check', 'Check level', ClipboardCheck, 'One list for this level: rooms short of lights or with no socket, circuits over the Rules sheet, devices outside a room, ELV coverage gaps and boards not on the plan (CHK)'), why: NO_DRAWING }),
         sm({ label: 'Coverage', icon: CircleDashed, cmd: 'COV', title: 'Show what the devices of the system chosen on the arrow cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing, why: NO_DRAWING, menu: coverageMenu }),
         sm({ label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, why: a.cad?.hasDrawing ? a.cad.copyWhy : NO_DRAWING, menu: a.cad?.copyLevels })
       ],

@@ -720,9 +720,17 @@ describe('Design CAD ribbon: Devices and Level', () => {
     show();
     pick(ELEC);
     expect(tools('Devices')).toEqual(['Add device', 'Fill room', 'Light room', 'Room devices', 'Emergency']);
-    expect(tools('Level')).toEqual(['Coverage', 'Copy to level']);
+    expect(tools('Level')).toEqual(['Check level', 'Coverage', 'Copy to level']);
     for (const name of ['Room devices', 'Emergency', 'Coverage', 'Copy to level']) expect(tool(name).querySelector('span')?.textContent).toBe(name);
     expect(group('Rooms').querySelector('button[aria-label="Trace"] span')).toBeNull(); // a small tool of another panel stays icon only
+  });
+
+  it('starts Check level from the Level panel', () => {
+    const onTool = vi.fn();
+    show({ onTool });
+    pick(ELEC);
+    click(tool('Check level'));
+    expect(onTool).toHaveBeenCalledWith('check');
   });
 
   it("chooses Fill room's device on its arrow and starts FILL from the main button", () => {

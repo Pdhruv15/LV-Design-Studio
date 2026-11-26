@@ -60,7 +60,7 @@ import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, isElvType, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
-import { canFill, copyTo, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
+import { canFill, copyTo, coverageGaps, coverageNote, elvLayer, fillAt, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { safeFileName, saveBinary, saveBinaryAt, savePdf, saveText } from '../../util/files';
 import { angleDeg, areaOf, boxOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -73,6 +73,8 @@ import type { PlanTarget } from '../../model/planTarget';
 import { CAD_UNITS, planScale } from '../../model/cadUnits';
 import CadLayerTable from '../CadLayerTable';
 import CadTabs from './CadTabs';
+import LevelCheckPanel from './LevelCheckPanel';
+import { checkLevel, type LevelFinding } from '../../model/levelCheck';
 import RoomLightingPanel, { lightingOf, LUX_START, type LuxSettings } from './RoomLightingPanel';
 import { placeRoomLights } from '../../model/roomLights';
 import RoomDeviceTemplatePanel from './RoomDeviceTemplatePanel';
@@ -169,6 +171,7 @@ const PROMPT: Record<CadTool, string> = {
   dist: 'DI  Specify first point:',
   area: 'AREA  Specify first corner point or [Object]:',
   containment: 'CONTAINMENTCHECK  Select an LV cable-tray segment:',
+  check: 'CHK  The list is in the side panel: click a line to go there.',
   room: 'ROOM  Click inside a room (its outline comes from the walls):',
   trace: 'TRACE  Specify first corner of the room:',
   name: 'NAME  Click the room name on the drawing:',
@@ -449,6 +452,9 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [roomTemplateReplace, setRoomTemplateReplace] = useState(true);
   // LV containment check: a selected drawn tray segment. The bounded results exist only while this tool is active.
   const [containmentSegment, setContainmentSegment] = useState<string | null>(null);
+  // Check level: the line last clicked, and a counter that Check again bumps so the list is worked out afresh.
+  const [checkSel, setCheckSel] = useState<string | null>(null);
+  const [checkRun, setCheckRun] = useState(0);
   // Emergency (EM): the escape routes, points of emphasis and open-area rooms marked (metres), kept until Place or Cancel.
   const [em, setEm] = useState<{ routes: Pt[][]; points: { at: Pt; kind: EmphasisKind }[]; rooms: string[] }>({ routes: [], points: [], rooms: [] });
   const [emSet, setEmSet] = useState<EmSettings>(EM_START);
@@ -948,6 +954,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const containmentCheck = useMemo(() => tool === 'containment'
     ? checkLvContainment(project, sketch)
     : { segments: [], truncated: false, checkedRoutes: 0, issues: 0 }, [tool, project, sketch]);
+  // Check level: worked out only while the tool runs, and again on Check again.
+  const levelCheck = useMemo(() => {
+    if (tool !== 'check' || !floor) return undefined;
+    const rooms = buildingInfoOf(project).rooms.filter((r) => r.buildingId === floor.ref.building && r.levelId === floor.ref.level && (r.outline?.length ?? 0) >= 3);
+    return checkLevel(project, floor.ref, {
+      rooms, placed,
+      lightNeed: (room) => { const r = lightingOf(project, room, luxSet); return r.result.invalid ? undefined : { needed: r.result.count, lux: r.input.targetLux }; },
+      coverage: coverageGaps(project, { building: floor.ref.building, level: floor.ref.level }).map((g) => ({ system: g.system, label: g.label, roomsNotCovered: g.roomsNotCovered }))
+    });
+  }, [tool, project, floor, placed, luxSet, checkRun]); // eslint-disable-line react-hooks/exhaustive-deps -- the list is rebuilt when asked
+  useEffect(() => {
+    if (tool !== 'check' || !floor) return;
+    if (levelCheck) cad.say(`CHK  ${floorLabel(project.building, floor)}: ${levelCheck.toLook ? `${levelCheck.toLook} to look at` : 'nothing to look at'} in ${levelCheck.rooms} room${levelCheck.rooms === 1 ? '' : 's'} — click a line to go there.`);
+  }, [tool, checkRun]); // eslint-disable-line react-hooks/exhaustive-deps -- said when the tool starts and on Check again
   const roomTemplateGhosts: CanvasDevice[] = tool !== 'roomtemplate' ? [] : (() => {
     const out: CanvasDevice[] = [];
     const add = (at: Pt[], key: string, symbol: { shape: string; text: string; plan?: string; tag?: string }, elv = false) => at.forEach(([x, y], i) => out.push({ key: `${key}${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: symbol.shape, text: symbol.text, ...(symbol.plan ? { plan: symbol.plan, tag: symbol.tag } : {}), label: '', elv, ghost: true }));
@@ -5347,6 +5367,30 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           {tool === 'containment' && view && (
             <ContainmentSegmentPanel result={containmentCheck} selectedId={containmentSegment} onSelect={(id) => { setContainmentSegment(id); cad.say(`CONTAINMENTCHECK  ${containmentCheck.segments.find((segment) => segment.id === id)?.name ?? id} selected.`); }}
               onApply={applyContainmentSize} onOpenAssignments={() => { onShow?.({ to: 'cable-tray' }); cad.say('CONTAINMENTCHECK  Cable-tray assignments opened.'); }} />
+          )}
+          {tool === 'check' && view && !floor && (
+            <>
+              <h4>Check level</h4>
+              <div className="cad-devform"><span className="m">Add the building and its levels in Building information first.</span></div>
+            </>
+          )}
+          {tool === 'check' && view && floor && levelCheck && (
+            <LevelCheckPanel levelName={floorLabel(project.building, floor)} check={levelCheck} selected={checkSel}
+              onShow={(f: LevelFinding) => {
+                setCheckSel(f.text);
+                setShowTarget({ level: floor.ref, file: view.file, kind: 'devices', keys: f.keys ?? [], itemIds: [], box: f.box, label: f.text });
+                cad.say(`CHK  ${f.text}`);
+              }}
+              onFix={(f: LevelFinding) => {
+                if (f.fix?.tool === 'lux') {
+                  const room = buildingInfoOf(project).rooms.find((r) => r.id === (f.fix as { roomId: string }).roomId);
+                  if (!room) return;
+                  luxNext.current = room.id; cad.setTool('lux'); setTimeout(() => cad.say(`LUX  ${room.name}: set the luminaire and circuit, then Place.`));
+                } else if (f.fix?.tool === 'coverage') {
+                  cad.setCoverageSystem(f.fix.system as Parameters<typeof cad.setCoverageSystem>[0]); cad.setCoverage(true);
+                }
+              }}
+              onAgain={() => setCheckRun((n) => n + 1)} />
           )}
           {(tool === 'cable' || tool === 'link') && view && (
             <>

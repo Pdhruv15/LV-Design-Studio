@@ -1,6 +1,6 @@
 import { buildingInfoOf } from '../../calc/building';
 import { levelCoverage, reachM, type RoomCoverage } from '../../elv/coverage';
-import { deviceLabel, SYSTEM_LABEL } from './elvLabels';
+import { coverageSystems, deviceLabel, SYSTEM_LABEL } from './elvLabels';
 import type { ElvSystem } from '../../elv/defaults';
 import { cameraRangeM, devicesOf, ELV_DEVICES, type ElvDeviceType } from '../../elv/devices';
 import { copyDevices, devicesOn, fillPoints, moveDevice, placeDevices, removeDevices, roomAt, type ElvDevice } from '../../elv/placed';
@@ -135,4 +135,12 @@ export function copyTo(p: Project, from: PlanLevel, to: PlanLevel, system: ElvSy
   if (!devicesOn(p, from.building, from.level).some((d) => types.includes(d.type))) return { message: `No ${SYSTEM_LABEL[system].toLowerCase()} devices on this level to copy.` };
   const { project, ids, sameRoom } = copyDevices(p, { buildingId: from.building, levelId: from.level }, { buildingId: to.building, levelId: to.level }, types);
   return { next: project, message: `${plural(ids.length, 'device')} copied to ${toName} (${sameRoom} in a room of the same name) · ⌘Z to undo` };
+}
+
+/** Check level: for each system Coverage offers that has devices on the level, how many rooms it does not fully cover. */
+export function coverageGaps(p: Project, lv: PlanLevel): { system: ElvSystem; label: string; roomsNotCovered: number }[] {
+  const here = devicesOn(p, lv.building, lv.level);
+  return coverageSystems()
+    .filter((s) => here.some((d) => ELV_DEVICES[d.type].system === s.id))
+    .map((s) => ({ system: s.id, label: s.label, roomsNotCovered: coverageOf(p, lv, s.id).filter((c) => c.gaps.length > 0).length }));
 }

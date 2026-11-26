@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.307', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Check level', text: 'Level → Check level (CHK) lists what to look at on the level showing: rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the most the Rules sheet allows, devices on a removed circuit or outside every room, ELV coverage gaps by system and boards not yet on the plan, with the counts by type. Click a line to go there; some lines open Light room or Coverage. It is worked out when you ask, and Check again repeats it.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.305', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Quick dimension', text: 'Annotate → Dimensions → Quick (QDIM): pick lines, polylines, arcs and circles, drawn or of the opened drawing (a window too), press Enter, then click where the row goes. It draws one dimension between each pair of points in one go: horizontal above or below them, vertical beside them. Type C or B first for Continuous (a chain) or Baseline (each from the first); the choice is kept.', action: 'cad' },
