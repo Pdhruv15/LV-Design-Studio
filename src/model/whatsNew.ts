@@ -24,6 +24,12 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.324', date: '2026-11-26',
+    items: [
+      { title: 'Annotate: the Text panel', text: 'Text now keeps Text or Notes, whichever you used last (its arrow has both). Beside it: the text style list (choose one to make it current), a Find box (type words, Enter: find and replace them) and the height box (new text\'s height on paper, or the texts picked; varies when they differ). The text tools (Numbered text, Justify, Height, Align, Case, Frame, Mask, Copy words, Find and replace) are under the panel\'s name; its corner button opens Text style.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
     version: '2.323', date: '2026-11-26',
     items: [
       { title: 'Transformer primary voltage and tap', text: 'On the board form of a main board with a transformer, Primary voltage and Tap now sit beside Vector group. Pick the primary voltage from the usual list (it shows on the SLD and schedules), and a tap of −5 to +5 %. A minus tap raises the secondary voltage, so the voltage drop at every board is lower by that amount (tap −2.5 % gives +2.56 %); a plus tap does the opposite. Nothing changes until a tap is set.' },

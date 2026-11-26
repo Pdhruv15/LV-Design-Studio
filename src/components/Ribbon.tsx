@@ -7,13 +7,14 @@ import {
   ChevronDown, ChevronUp, Waypoints, Lock, CircleArrowRight, MessageCircleQuestion, Route, Database, BookOpen, GitCompare, History, Percent, BadgePercent, Play, AlignVerticalSpaceAround, LayoutDashboard, LifeBuoy, Braces, PanelBottom, Files, FilePlus2, FolderOpen, Save, SaveAll, UserRound, FolderCog, Clock, Network, House, Redo2, Rows3, Table2, Trash2, TrendingDown, Undo2, Zap, type LucideIcon, BatteryFull, Box, ChartColumnBig, Cctv } from 'lucide-react';
 import { BringToFront, Frame, LayoutTemplate, Printer, Crop, Plus, ChevronRight, LightbulbOff, Snowflake, LockOpen, Focus, CircleCheck, Layers3, ArrowDownRight, Cloud, FileSearch, ListOrdered } from 'lucide-react';
 import { PlugZap, ListFilter, PenTool, FileCog, PaintBucket, MessageSquareText, Tag, Navigation, Layers2, PaintRoller, BoxSelect, Paintbrush, Scissors, FlipHorizontal2, Scaling, StretchHorizontal, CornerUpRight, Unlink2, Link2, Paperclip, Ungroup, Grid2x2, Rows2, CirclePlus, Move, Slash, Spline, RectangleHorizontal, Circle, Rainbow, RotateCw, Eraser, MoveHorizontal, Layers, MousePointerClick, PenLine, Type, Ruler, Maximize, Grid3x3, Copy, CircleDashed, ListChecks, Palette, ZoomIn, ZoomOut, Columns2, FileCode, BookImage, ALargeSmall, Plug, Tags, Workflow, Lightbulb, DoorOpen , SquareScissors } from 'lucide-react';
-import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass, RefreshCw } from 'lucide-react';
+import { ClipboardList, Package, Dot, Divide, Target, Pentagon, ArrowRightToLine, TriangleRight, Hexagon, CaseSensitive, LandPlot, ScanSearch, Expand, SlidersHorizontal, DraftingCompass, RefreshCw, Search, StickyNote } from 'lucide-react';
 import { VP_ARRANGEMENTS, VP_SCALES } from '../model/planViewports';
 import { FileJson, LayoutPanelLeft, Maximize2, Square, AlignStartVertical } from 'lucide-react';
 import { ArrowDownToLine, ArrowLeftRight, Check, ChevronLeft, ClipboardPaste, CopyPlus, ListPlus, LocateFixed, Scan, SquareDashed } from 'lucide-react';
 import type { ShowRow } from '../diagram/mvShow';
 import type { CadExport, CadRibbonInfo, CadTool } from './cad/cadState';
 import { ColourPicker } from './cad/ColourPicker';
+import { ISO_TEXT_MM } from '../model/cadText';
 import { LINETYPE_IDS, LINETYPES, LINEWEIGHTS, type LinetypeId, type ObjectProps } from '../model/cadLayerStyle';
 import { toolAlias } from './cad/cadCommands';
 import type { BoardKind, Feeder } from '../types';
@@ -67,6 +68,8 @@ interface Tool {
   col?: boolean;
   /** In the panel's ▾ under its caption instead of on the row (the less used tools of a panel). */
   more?: boolean;
+  /** In the panel's ▾: a line above it. */
+  sepBefore?: boolean;
   /** Its typed command, shown in bold with the name in an icon-only tool's tooltip (e.g. O for Offset). */
   cmd?: string;
   /** The whole button opens its `menu` (it has no action of its own). */
@@ -339,18 +342,21 @@ const GROUP_OF: Partial<Record<CadTool, number>> = {
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
   dev: G.devices, fill: G.devices, lux: G.devices, sockroom: G.devices, check: G.level, roomtemplate: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
 };
-/** Under Text's arrow: Text and Numbered text, then the tools that change the texts picked (typed-only before v2.072). */
-const TEXT_TOOLS: [CadTool, string, string][] = [
-  ['text', 'Text (T)', 'Click where it goes, type it, Enter'],
-  ['mtext', 'Notes (MT)', 'Two corners for the box, then type; lines wrap to its width'],
-  ['tcount', 'Numbered text (TCOUNT)', 'Prefix, start, step, suffix, then click to place each, or renumber the texts picked'],
-  ['tjust', 'Justify (TJ)', 'Justify the texts picked without moving them'],
-  ['th', 'Height (TH)', 'Text height on paper (mm) of the texts picked, or for new text'],
-  ['talign', 'Align or space (TA)', 'Line up the texts picked on a text or point, or space them evenly'],
-  ['tcase', 'Case (TC)', 'Upper, lower, title or sentence case of the texts picked'],
-  ['tframe', 'Frame (TFRAME)', 'A circle, box or hexagon round the texts picked'],
-  ['tmask', 'Mask (TMASK)', 'A paper-colour mask under the texts picked'],
-  ['tcopy', 'Copy words (TCOPY)', 'Give the texts picked the words of another text']
+/** Text: the forms under its arrow (as the dimension forms below); the button keeps the one used last. */
+const TEXT_FORMS: DimForm[] = [
+  ['text', 'Text', 'T', Type, 'Click where it goes, type it, Enter'],
+  ['mtext', 'Notes', 'MT', StickyNote, 'Two corners for the box, then type; lines wrap to its width']
+];
+/** Under the Text panel's ▾: the tools that change the texts picked (typed-only before v2.072), then Find and replace. */
+const TEXT_TOOLS: [CadTool, string, string, Icon][] = [
+  ['tcount', 'Numbered text (TCOUNT)', 'Prefix, start, step, suffix, then click to place each, or renumber the texts picked', ListOrdered],
+  ['tjust', 'Justify (TJ)', 'Justify the texts picked without moving them', AlignVerticalSpaceAround],
+  ['th', 'Height (TH)', 'Text height on paper (mm) of the texts picked, or for new text', ALargeSmall],
+  ['talign', 'Align or space (TA)', 'Line up the texts picked on a text or point, or space them evenly', AlignVerticalSpaceAround],
+  ['tcase', 'Case (TC)', 'Upper, lower, title or sentence case of the texts picked', CaseSensitive],
+  ['tframe', 'Frame (TFRAME)', 'A circle, box or hexagon round the texts picked', Frame],
+  ['tmask', 'Mask (TMASK)', 'A paper-colour mask under the texts picked', BoxSelect],
+  ['tcopy', 'Copy words (TCOPY)', 'Give the texts picked the words of another text', Copy]
 ];
 /** Dimensions: the forms under Linear's and Continue's arrows (tool, name, typed command, icon, what it does); each
  * button keeps the form used last. */
@@ -567,14 +573,16 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
     const t = g === undefined ? undefined : cadTabs.find((x) => [...x.groups, ...(x.paper ?? []), ...(x.layout ?? [])].includes(g));
     if (t) setCadSub(t.id);
   }, [cadToolNow]); // eslint-disable-line react-hooks/exhaustive-deps -- a tool started moves the ribbon; the mode alone does not
-  // Linear and Continue keep the form used last, typed or picked.
-  const [dimForms, setDimForms] = useState<{ lin: CadTool; cont: CadTool }>({ lin: 'dimlin', cont: 'dimcont' });
+  // Linear, Continue and Text keep the form used last, typed or picked.
+  const [dimForms, setDimForms] = useState<{ lin: CadTool; cont: CadTool; text: CadTool }>({ lin: 'dimlin', cont: 'dimcont', text: 'text' });
   useEffect(() => {
     const t = cadToolNow;
     if (t && t !== dimForms.lin && LIN_FORMS.some(([k]) => k === t)) setDimForms((f) => ({ ...f, lin: t }));
     if (t && t !== dimForms.cont && CONT_FORMS.some(([k]) => k === t)) setDimForms((f) => ({ ...f, cont: t }));
+    if (t && t !== dimForms.text && TEXT_FORMS.some(([k]) => k === t)) setDimForms((f) => ({ ...f, text: t }));
   }, [cadToolNow]); // eslint-disable-line react-hooks/exhaustive-deps -- set by the tool started
   // File: open, save and close drawings, the level and units of this one (a menu, with lists beside it).
+  const [findText, setFindText] = useState('');
   const [fileOpen, setFileOpen] = useState(false);
   const [fileList, setFileList] = useState<'open' | 'close' | 'export' | null>(null);
   const fileRef = useRef<HTMLDivElement>(null);
@@ -1015,9 +1023,9 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       // Annotate, as four panels: Text (numbered text and the text tools under the arrow, Text style); Dimensions and Leaders and
       // tags and Markup are after Export in the list, drawn on the same sub-tab. On a layout's paper the markup takes its place.
       [
-        { ...cadTool('text', 'Text', Type, 'Text (T): click where it goes, type it on the command line, Enter. The arrow: numbered text and the text tools'),
-          active: TEXT_TOOLS.some(([k]) => a.cad?.tool === k), menu: TEXT_TOOLS.map(([k, label, title], i) => ({ label, title, onClick: () => a.cad?.onTool(k), sep: i === 3 })) },
-        sm(cadCmd('Text style', CaseSensitive, 'ST', 'Text style (ST): named text styles with their height on paper; new text takes the current one', 'STYLE'))
+        { ...formsTool(TEXT_FORMS, dimForms.text), small: false },
+        ...TEXT_TOOLS.map(([k, label, title, icon]) => ({ ...cadTool(k, label, icon, title), more: true })),
+        { ...cadCmd('Find and replace… (FIND)', Search, 'FIND', 'Find and replace (FIND): words in the texts, notes, attributes and dimension texts drawn here; or type FIND and the words'), more: true, sepBefore: true }
       ],
       // Blocks (S9 of the 2D gap plan): the drawing's own blocks. Create first; Insert and the palette come with S10.
       [
@@ -1487,6 +1495,61 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       )}
     </>
   );
+  // Text: the style of new text (the list makes another current), a Find box (Enter: FIND and the words) and the height
+  // on paper of new text, or of the texts picked.
+  const tst = info?.textStyles, tth = info?.textH;
+  const textStyleList = (
+    <>
+      <button type="button" className="ribbon-layer" aria-haspopup="menu" aria-expanded={splitOpen === 'tst:list'} disabled={!tst} onClick={listAt('tst:list')}
+        {...(cadNamed ? tipAttrs('Text style', `Text style · ${tst?.current ?? 'no drawing'}`, 'New text takes it; the list makes another current')
+          : { title: 'The current text style: new text takes it', 'aria-label': 'Text style' })}>
+        <CaseSensitive size={14} strokeWidth={1.6} className="lead" aria-hidden />
+        <span className="nm">{tst?.current ?? 'No drawing'}</span>
+        <ChevronDown size={10} strokeWidth={1.8} aria-hidden />
+      </button>
+      {splitOpen === 'tst:list' && tst && (
+        <div className="ribbon-split-menu ribbon-layer-menu" role="menu" aria-label="Text styles" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
+          {tst.names.map((n) => (
+            <button key={n} role="menuitemradio" aria-checked={n === tst.current} title={`Make ${n} the current text style`}
+              onClick={() => { setSplitOpen(null); a.cad?.onCommand?.(`STYLE R ${n}`); }}><span>{n}</span></button>
+          ))}
+          <hr />
+          <button role="menuitem" onClick={() => { setSplitOpen(null); a.cad?.onCommand?.('STYLE'); }}>Text style… (ST)</button>
+        </div>
+      )}
+    </>
+  );
+  const runFind = () => { const w = findText.trim(); setFindText(''); a.cad?.onCommand?.(w ? `FIND ${w}` : 'FIND'); };
+  const findBox = (
+    <span className="ribbon-find">
+      <input type="search" className="ribbon-find-input" placeholder="Find text" aria-label="Find text" title="Find text (FIND): type words, Enter to find and replace them" value={findText} disabled={!a.cad?.hasDrawing}
+        onChange={(e) => setFindText(e.target.value)}
+        onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); runFind(); } else if (e.key === 'Escape') { setFindText(''); e.currentTarget.blur(); } }} />
+      <button type="button" className="ribbon-find-go" aria-label="Find" title="Find and replace (FIND)" disabled={!a.cad?.hasDrawing} onClick={runFind}><Search size={13} strokeWidth={1.8} aria-hidden /></button>
+    </span>
+  );
+  const textHeightList = (
+    <>
+      <button type="button" className="ribbon-layer" aria-haspopup="menu" aria-expanded={splitOpen === 'tth:list'} disabled={!tth} onClick={listAt('tth:list')}
+        {...(cadNamed ? tipAttrs('Text height', `Text height · ${tth ? (tth.mm === 'varies' ? 'varies' : `${tth.mm} mm`) : 'no drawing'}`, tth?.picked ? 'The height on paper of the texts picked; the list gives them another' : 'The height on paper of new text; the list sets another')
+          : { title: tth?.picked ? 'The height on paper of the texts picked: the list gives them another' : 'The height on paper of new text', 'aria-label': 'Text height' })}>
+        <ALargeSmall size={14} strokeWidth={1.6} className="lead" aria-hidden />
+        <span className="nm">{tth ? (tth.mm === 'varies' ? 'varies' : `${tth.mm} mm`) : 'No drawing'}</span>
+        <ChevronDown size={10} strokeWidth={1.8} aria-hidden />
+      </button>
+      {splitOpen === 'tth:list' && tth && (
+        <div className="ribbon-split-menu ribbon-layer-menu" role="menu" aria-label="Text heights" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
+          {tth.picked && <div className="hd" role="presentation">The texts picked</div>}
+          {ISO_TEXT_MM.map((h) => (
+            <button key={h} role="menuitemradio" aria-checked={h === tth.mm} title={tth.picked ? `Give the texts picked ${h} mm on paper` : `New text ${h} mm on paper`}
+              onClick={() => { setSplitOpen(null); a.cad?.onCommand?.(`TH ${h}`); }}><span>{h} mm</span></button>
+          ))}
+          <hr />
+          <button role="menuitem" onClick={() => { setSplitOpen(null); a.cad?.onTool('th'); }}>Height… (TH)</button>
+        </div>
+      )}
+    </>
+  );
   // Properties: the colour, linetype and lineweight of the drawn objects picked, or of new objects while none is.
   const pv = info?.props;
   const target = info?.picked ? `the ${info.picked} object${info.picked === 1 ? '' : 's'} picked` : 'new objects';
@@ -1519,6 +1582,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
   const PANEL: Partial<Record<number, { head?: React.ReactNode; under?: number; side?: React.ReactNode; lists?: { el: React.ReactNode; n: number }[]; launch?: { name: string; head: string; text: string; on?: boolean; onClick: () => void } }>> = {
     [G.layers]: { head: layerList, under: 6 },
     [G.dims]: { lists: [{ el: dimStyleList, n: 2 }, { el: dimLayerList, n: 2 }], launch: { name: 'Dimension styles', head: 'Dimension style (D)', text: 'The arrows, sizes, unit and decimals of new dimensions', onClick: () => a.cad?.onCommand?.('DIMSTYLE') } },
+    [G.annotate]: { lists: [{ el: textStyleList, n: 0 }, { el: findBox, n: 0 }, { el: textHeightList, n: 0 }], launch: { name: 'Text styles', head: 'Text style (ST)', text: 'Fonts and heights of named text styles; new text takes the current one', onClick: () => a.cad?.onCommand?.('STYLE') } },
     [G.leaders]: { head: mleaderList, under: 2 },
     [G.props]: { side: propLists, launch: { name: 'Properties palette', head: 'Properties palette (Ctrl+1)', text: 'The layer, colour, linetype and shape of the objects picked, docked on the right', on: a.cad?.propsOn, onClick: () => a.cad?.onProps?.() } }
   };
@@ -1622,7 +1686,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
           // A tool that only opens a list (New layout, viewport Scale, Copy to level) is in the menu as that list.
           const menuOf = (tools: Tool[]) => tools.flatMap((t, k) => (t.menuOnly && t.menu
             ? t.menu.map((m, i) => ({ ...m, label: `${t.label}: ${m.label}`, sep: k > 0 && i === 0 }))
-            : [{ label: t.label, title: t.title, onClick: t.onClick }]));
+            : [{ label: t.label, title: t.title, onClick: t.onClick, sep: t.sepBefore }]));
           const popup = (key: string, items: NonNullable<Tool['menu']>) => splitOpen === key && (
             <div className="ribbon-split-menu" role="menu" style={{ left: splitAt.x, top: splitAt.y }} onMouseDown={(e) => e.stopPropagation()}>
               {items.map((m) => <span key={m.id ?? m.label} style={{ display: 'contents' }}>{m.sep && <hr />}{m.head ? <div className="hd" role="presentation">{m.label}</div> : <button role={m.checked === undefined ? 'menuitem' : m.keep ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={m.checked} title={m.title} disabled={m.disabled}
@@ -1719,7 +1783,10 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
             <div key={gi} className={panelClass} role="group" aria-label={caption} style={order} {...panelDnD}>
               <div className="ribbon-group-btns">{row}</div>
               {caption && (extra.length
-                ? <><button className="ribbon-caption ribbon-caption-more" {...captionDrag} title={`More ${caption.toLowerCase()} tools: ${extra.map((t) => t.label).join(', ')}`} aria-haspopup="menu" aria-expanded={splitOpen === `more:${gi}`} onClick={opener(`more:${gi}`)}>{caption}<ChevronDown size={10} strokeWidth={1.8} aria-hidden /></button>{popup(`more:${gi}`, menuOf(extra))}</>
+                ? (() => {
+                  const more = <><button className="ribbon-caption ribbon-caption-more" {...captionDrag} title={`More ${caption.toLowerCase()} tools: ${extra.map((t) => t.label).join(', ')}`} aria-haspopup="menu" aria-expanded={splitOpen === `more:${gi}`} onClick={opener(`more:${gi}`)}>{caption}<ChevronDown size={10} strokeWidth={1.8} aria-hidden /></button>{popup(`more:${gi}`, menuOf(extra))}</>;
+                  return launch ? <div className="ribbon-caption-both">{more}{launch}</div> : more;
+                })()
                 : <div className="ribbon-caption" {...captionDrag}>{caption}{launch}</div>)}
               {panelMoves}
             </div>

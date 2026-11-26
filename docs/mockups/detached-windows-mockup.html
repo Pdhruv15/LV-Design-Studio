@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Detached windows for Design CAD and the SLD</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0}
+body{width:1952px;padding:32px 40px;background:#ECEEF1;color:#1D2024;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:20px}
+h1{font-size:28px;line-height:34px;font-weight:700;margin:0 0 6px}
+h2{font-size:20px;line-height:26px;font-weight:700;margin:0 0 10px}
+.dtw-sub{font-size:14px;line-height:20px;color:#4A5058;margin:0}
+.dtw-legend{display:flex;align-items:center;gap:8px;margin:12px 0 0;font-size:13px;line-height:18px;color:#4A5058}
+.dtw-lg{display:block;width:4px;height:16px;background:#F5B301}
+.dtw-row{display:flex;gap:24px;margin-top:32px;align-items:flex-start}
+.dtw-col{width:924px;flex:none}
+.dtw-cap{font-size:13px;line-height:18px;color:#4A5058;margin-top:10px}
+.dtw-note{font-size:12px;line-height:16px;color:#4A5058;margin-top:8px}
+.dtw-lbl{font-size:12px;line-height:16px;font-weight:700;color:#4A5058;margin:0 0 6px}
+
+/* app look */
+.dtw-app{--bg:#15171A;--panel:#1D2024;--p2:#26292E;--line:#353A41;--tx:#E6E8EB;--mut:#A3ABB5;--acc:#F5B301;color:var(--tx);font-size:13px;line-height:16px}
+.dtw-win{position:relative;display:flex;flex-direction:column;background:var(--panel);border:1px solid #353A41;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.dtw-win>:last-child{border-radius:0 0 7px 7px}
+.dtw-title{position:relative;flex:none;height:30px;line-height:30px;background:#101214;color:#A3ABB5;font-size:12px;text-align:center;border-radius:7px 7px 0 0}
+.dtw-tg{position:absolute;right:12px;top:10px;display:flex;gap:14px;color:#A3ABB5}
+.dtw-tg svg{display:block}
+.dtw-crop{position:relative;background:var(--panel);border:1px solid #353A41;border-radius:6px}
+.dtw-rt{flex:none;display:flex;gap:2px;height:30px;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--line)}
+.dtw-rtab{position:relative;display:flex;align-items:center;gap:6px;height:30px;padding:0 9px;line-height:26px;color:var(--mut);border-bottom:2px solid transparent;white-space:nowrap}
+.dtw-rtab.dtw-on{color:var(--tx);border-bottom-color:var(--acc)}
+.dtw-mk{display:flex;align-items:center;justify-content:center;width:18px;height:18px;border:2px solid var(--acc);border-radius:4px;color:var(--tx)}
+.dtw-st{flex:none;display:flex;align-items:center;height:28px;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px}
+.dtw-stab{padding:0 10px;line-height:26px;height:28px;color:var(--mut);border-bottom:2px solid transparent;white-space:nowrap}
+.dtw-stab.dtw-on{color:var(--tx);border-bottom-color:var(--acc)}
+.dtw-chk{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--tx)}
+.dtw-box{display:flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid var(--mut);border-radius:3px;color:var(--tx)}
+.dtw-ts{flex:none;display:flex;gap:14px;height:56px;padding:5px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.dtw-tgp{display:flex;flex-direction:column;align-items:center;gap:3px}
+.dtw-tbx{display:flex;gap:3px}
+.dtw-tb{width:26px;height:26px;border-radius:4px;background:var(--p2)}
+.dtw-tn{font-size:10px;line-height:12px;color:var(--mut)}
+.dtw-dt{flex:none;display:flex;align-items:flex-end;gap:2px;height:32px;padding:4px 8px 0;background:var(--panel);border-bottom:1px solid var(--line)}
+.dtw-dtab{position:relative;display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;background:var(--p2);border-top:2px solid transparent;font-size:12px;white-space:nowrap}
+.dtw-dtab.dtw-on{background:var(--bg);border-top-color:var(--acc)}
+.dtw-mu{color:var(--mut)}
+.dtw-plus{display:flex;align-items:center;justify-content:center;width:24px;height:24px;margin-bottom:2px;color:var(--mut);font-size:16px}
+.dtw-mv{position:relative;display:flex;align-items:center;justify-content:center;width:26px;height:26px;margin:0 0 1px auto;border:2px solid var(--acc);border-radius:4px;color:var(--tx)}
+.dtw-pb{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;margin:0 0 1px auto;border:2px solid var(--acc);border-radius:4px;color:var(--tx);font-size:12px;white-space:nowrap}
+.dtw-tip{position:absolute;top:32px;right:0;z-index:60;padding:5px 8px;background:#101214;border:1px solid var(--line);border-radius:4px;color:var(--tx);font-size:12px;line-height:16px;white-space:nowrap}
+.dtw-tipl{right:auto;left:0;top:34px}
+.dtw-sgr{flex:none;display:flex;align-items:center;gap:2px;height:36px;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--line)}
+.dtw-seg{position:relative;display:flex;align-items:center;gap:6px;height:26px;padding:0 12px;border-radius:4px;background:var(--p2);color:var(--tx);white-space:nowrap}
+.dtw-seg.dtw-on{background:var(--acc);color:#1D2024}
+.dtw-btn{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;margin-left:8px;border:1px solid var(--line);border-radius:4px;background:var(--p2);white-space:nowrap}
+.dtw-cbr{flex:none;display:flex;align-items:center;height:32px;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--line)}
+.dtw-add{display:flex;align-items:center;height:24px;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:var(--p2)}
+.dtw-lt{flex:none;display:flex;gap:2px;align-items:flex-end;height:24px;padding:0 8px;background:var(--panel);border-top:1px solid var(--line);font-size:12px}
+.dtw-ltab{height:22px;line-height:20px;padding:0 12px;border-top:2px solid transparent;background:var(--p2)}
+.dtw-ltab.dtw-on{background:var(--bg);border-top-color:var(--acc)}
+.dtw-cl{flex:none;height:22px;line-height:22px;padding:0 10px;background:var(--bg);border-top:1px solid var(--line);font-size:12px}
+.dtw-sb{flex:none;display:flex;gap:14px;align-items:center;height:22px;padding:0 10px;background:#101214;font-size:10px;line-height:12px;color:var(--mut)}
+.dtw-sb .dtw-on{color:var(--tx)}
+.dtw-cv{position:relative;flex:1;min-height:0;background:var(--bg)}
+.dtw-cv svg{display:block}
+.dtw-menu{position:absolute;z-index:40;width:220px;padding:4px 0;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:13px;line-height:16px;color:var(--tx);white-space:nowrap}
+.dtw-mr{display:flex;align-items:center;gap:8px;height:28px;padding:0 12px}
+.dtw-mr.dtw-new{border-left:3px solid var(--acc);padding-left:9px}
+.dtw-mr.dtw-hv{background:var(--p2)}
+.dtw-sep{height:1px;margin:4px 0;background:var(--line)}
+.dtw-card{position:absolute;left:50%;top:50%;width:430px;margin:-70px 0 0 -215px;padding:24px;background:var(--panel);border:1px solid var(--line);border-radius:8px;outline:2px solid var(--acc);outline-offset:0;text-align:center}
+.dtw-card p{margin:0 0 16px;font-size:14px;line-height:20px}
+.dtw-cb2{display:flex;gap:10px;justify-content:center}
+.dtw-b1,.dtw-b2{height:30px;line-height:30px;padding:0 16px;border-radius:4px}
+.dtw-b1{background:var(--acc);color:#1D2024;font-weight:600}
+.dtw-b2{background:var(--p2);color:var(--tx)}
+
+/* page */
+.dtw-mon-lab{font-size:14px;line-height:20px;font-weight:700;margin:0 0 8px}
+.dtw-mon{width:928px;padding:14px;background:#2A2D33;border-radius:12px}
+.dtw-stand{width:120px;height:10px;margin:0 auto;background:#2A2D33}
+.dtw-monw{width:900px;height:560px}
+.dtw-box2{background:#fff;border:1px solid #C9CED6;border-radius:8px;padding:20px;font-size:13px;line-height:20px}
+.dtw-box2 h3{font-size:14px;line-height:20px;margin:0 0 8px}
+.dtw-box2 ul{margin:0;padding-left:18px}
+.dtw-dec div{margin:0}
+</style>
+</head>
+<body>
+<h1>Detached windows for Design CAD and the SLD</h1>
+<p class="dtw-sub">Proposal, 2026-11-26. A tab moves out of the main window into a window of its own, for example the plan on a second monitor beside the SLD.</p>
+<div class="dtw-legend"><span class="dtw-lg"></span>new item</div>
+
+<div class="dtw-row">
+  <div class="dtw-col">
+    <h2>1 · Today</h2>
+    <div id="dtw-s1"></div>
+    <div class="dtw-cap">One window. The SLD and the plan cannot be seen at the same time. The tab menu can only close drawings.</div>
+  </div>
+  <div class="dtw-col">
+    <h2>2 · Move to new window</h2>
+    <div class="dtw-lbl">Design CAD tab row</div>
+    <div id="dtw-s2a"></div>
+    <div class="dtw-lbl" style="margin-top:22px">SLD tab row</div>
+    <div id="dtw-s2b"></div>
+    <div class="dtw-note" style="margin-top:50px">The SLD tabs have no right-click menu today.</div>
+    <div class="dtw-cap">Right-click a tab, or use the button at the end of the tab row.</div>
+  </div>
+</div>
+
+<div class="dtw-row" style="display:block">
+  <h2>3 · Two monitors</h2>
+  <div id="dtw-r3" style="position:relative">
+    <div style="display:flex;gap:16px">
+      <div>
+        <div class="dtw-mon-lab">Monitor 1 · main window</div>
+        <div class="dtw-mon" id="dtw-m1"></div><div class="dtw-stand"></div>
+      </div>
+      <div>
+        <div class="dtw-mon-lab">Monitor 2 · Design CAD window</div>
+        <div class="dtw-mon" id="dtw-m2"></div><div class="dtw-stand"></div>
+      </div>
+    </div>
+    <svg id="dtw-arrow" style="position:absolute;left:0;top:0;pointer-events:none;z-index:100;overflow:visible" width="10" height="10"></svg>
+  </div>
+  <div class="dtw-cap">One project in both windows. Show on plan on the SLD brings the Design CAD window forward and zooms to DB-G1. Undo, Save and keys work in either window.</div>
+</div>
+
+<div class="dtw-row">
+  <div class="dtw-col">
+    <h2>4 · Main window while Design CAD is out</h2>
+    <div id="dtw-s4"></div>
+    <div class="dtw-cap" style="margin-top:14px">Shown only if the page is opened in the main window anyway, for example from the Stages tab.</div>
+  </div>
+  <div class="dtw-col">
+    <h2>5 · An SLD tab in its own window</h2>
+    <div id="dtw-s5" style="position:relative;height:520px"></div>
+    <div class="dtw-cap">Pick a board in the System diagram window: the Board tab in the main window shows that board.</div>
+  </div>
+</div>
+
+<div class="dtw-row">
+  <div class="dtw-col dtw-box2">
+    <h3>What stays</h3>
+    <ul>
+      <li>Pages, tools, colours and wording inside each page do not change.</li>
+      <li>Plots, PDFs and exports do not change and stay black-and-white.</li>
+      <li>Saved projects and drawings do not change.</li>
+      <li>With no tab detached, the app works exactly as today.</li>
+    </ul>
+  </div>
+  <div class="dtw-col dtw-box2 dtw-dec">
+    <h3>Decisions</h3>
+    <div>A. Design CAD window: <b>the whole page</b> (one drawing per window later, step 4)</div>
+    <div>B. SLD window: <b>one SLD tab</b>, selection shared</div>
+    <div>C. Detach: <b>right-click + button</b>; drag a tab out later (step 5)</div>
+    <div>D. Close a detached window: <b>puts the tab back</b>, no question</div>
+    <div>E. Ribbon there: <b>Design CAD sub-tabs only</b></div>
+    <div>F. Reopen: <b>remember place and size</b>; every tab starts in the main window</div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+function ic(n,s,st){
+  const a=`width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;flex:none;${st||''}"`;
+  const p={
+    win:'<path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/><path d="m21 3-9 9"/><path d="M15 3h6v6"/>',
+    back:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m16 8-8 8"/><path d="M16 16H8V8"/>',
+    min:'<path d="M4 12h16"/>',
+    sq:'<rect x="4" y="4" width="16" height="16" rx="1"/>',
+    x:'<path d="M5 5l14 14"/><path d="M19 5L5 19"/>',
+    file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    ok:'<path d="M5 12l5 5L19 7"/>'
+  }[n];
+  return `<svg ${a}>${p}</svg>`;
+}
+const RT=['Project','Load schedule','SLD','Design CAD','Sheets','Specification','Stages','Documents','BOM / Cost','Standards'];
+const rt=(act,o={})=>`<div class="dtw-rt">${RT.map(t=>`<div class="dtw-rtab${t===act?' dtw-on':''}">${t}${o.mark===t?`<span class="dtw-mk">${ic('win',12)}</span>`:''}${o.tip&&o.mark===t?`<div class="dtw-tip dtw-tipl">${o.tip}</div>`:''}</div>`).join('')}</div>`;
+const sub=act=>`<div class="dtw-st">${['LVCAD','Annotate','Electrical, ELV & sheets','Output'].map(t=>`<div class="dtw-stab${t===act?' dtw-on':''}">${t}</div>`).join('')}<div class="dtw-chk"><span class="dtw-box">${ic('ok',10)}</span>Show labels</div></div>`;
+const tools=g=>`<div class="dtw-ts">${g.map(([n,c])=>`<div class="dtw-tgp"><div class="dtw-tbx">${'<div class="dtw-tb"></div>'.repeat(c)}</div><div class="dtw-tn">${n}</div></div>`).join('')}</div>`;
+const T_CAD=[['Draw',6],['Modify',6],['Blocks',3],['Layers',4]];
+const T_ELEC=[['Rooms',4],['Cables and boards',5],['Devices',6],['Level',3]];
+const T_SLD=[['Run and check',4],['Canvas',3],['Boards',5],['Equipment',5]];
+const mrow=r=>r.sep?'<div class="dtw-sep"></div>':`<div class="dtw-mr${r.nw?' dtw-new':''}${r.hv?' dtw-hv':''}"${r.id?` id="${r.id}"`:''}>${r.ic?ic(r.ic,14):''}${r.t}${r.k?`<span style="margin-left:auto;color:var(--mut)">${r.k}</span>`:''}</div>`;
+const menu=(rows,st)=>`<div class="dtw-menu" style="${st}">${rows.map(mrow).join('')}</div>`;
+const CLOSE=[{t:'Close'},{t:'Close others'},{t:'Close all'}];
+const dtabs=o=>`<div class="dtw-dt">
+<div class="dtw-dtab dtw-on">${o.menu?menu(o.menu,'left:0;top:28px'):''}<span class="dtw-mu">Ground floor · </span>GF-plan.dwg${ic('x',8)}</div>
+<div class="dtw-dtab"><span class="dtw-mu">First floor · </span>FF-plan.dwg${ic('x',8)}</div>
+<div class="dtw-plus">+</div>
+${o.move?`<div class="dtw-mv">${ic('win',14)}<div class="dtw-tip">${o.move}</div></div>`:''}
+${o.back?`<div class="dtw-pb">${ic('back',14)}Put back in main window</div>`:''}
+</div>`;
+const sg=(segs,o={})=>`<div class="dtw-sgr">${segs.map(s=>`<div class="dtw-seg${s.on?' dtw-on':''}">${s.menu||''}${s.t}${s.mark?`<span class="dtw-mk" style="width:18px;height:18px">${ic('win',12)}</span>`:''}</div>`).join('')}${o.sheets?`<div class="dtw-btn">${ic('file',13)}Sheets</div>`:''}${o.move?`<div class="dtw-mv">${ic('win',14)}<div class="dtw-tip">${o.move}</div></div>`:''}${o.back?`<div class="dtw-pb">${ic('back',14)}Put back in main window</div>`:''}</div>`;
+const cbar=`<div class="dtw-cbr"><div class="dtw-add">+ Add</div></div>`;
+const lt=`<div class="dtw-lt"><div class="dtw-ltab dtw-on">Model</div><div class="dtw-ltab">GF-01</div></div>`;
+const cl=t=>`<div class="dtw-cl"><span style="color:var(--mut)">Command:</span> ${t||''}</div>`;
+const sb=`<div class="dtw-sb"><span class="dtw-on">SNAP</span><span class="dtw-on">GRID</span><span>ORTHO</span><span class="dtw-on">OSNAP</span><span>DYN</span><span>LWT</span></div>`;
+const win=(title,inner,st,extra)=>`<div class="dtw-app dtw-win" style="${st||''}">${extra||''}<div class="dtw-title">${title}<span class="dtw-tg">${ic('min',10)}${ic('sq',10)}${ic('x',10)}</span></div>${inner}</div>`;
+const cv=(inner,st)=>`<div class="dtw-cv" style="${st||''}">${inner}</div>`;
+
+/* drawings */
+function plan(W,H,o={}){
+  const x0=16,y0=16,x1=W-16,y1=H-16,ym=y0+(y1-y0)*.5,w=x1-x0;
+  const cx=[x0,x0+w*.3,x0+w*.65,x1];
+  const L='#A3ABB5',Y='#f5c04a';
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#15171A"/>`;
+  s+=`<g fill="none" stroke="${L}" stroke-width="1.5"><rect x="${x0}" y="${y0}" width="${w}" height="${y1-y0}"/><path d="M${x0} ${ym}H${x1}M${cx[1]} ${y0}V${y1}M${cx[2]} ${y0}V${y1}"/></g>`;
+  const top=['Living','Kitchen','Bed 1'],bot=['Corridor','Elec. room G.01','Bed 2'];
+  top.forEach((t,i)=>s+=`<text x="${cx[i]+8}" y="${y0+16}" font-size="10" fill="${L}">${t}</text>`);
+  bot.forEach((t,i)=>s+=`<text x="${cx[i]+8}" y="${ym+16}" font-size="10" fill="${L}">${t}</text>`);
+  const light=(x,y)=>`<g stroke="${Y}" stroke-width="1.5" fill="none"><circle cx="${x}" cy="${y}" r="6"/><path d="M${x-4} ${y-4}L${x+4} ${y+4}M${x+4} ${y-4}L${x-4} ${y+4}"/></g>`;
+  const ty=(y0+ym)/2+8,by=(ym+y1)/2+4;
+  const rw=i=>cx[i+1]-cx[i];
+  [[0,.3],[0,.7],[1,.3],[1,.7],[2,.3],[2,.7]].forEach(([i,f])=>s+=light(cx[i]+rw(i)*f,ty));
+  [[0,.3],[0,.7]].forEach(([i,f])=>s+=light(cx[i]+rw(i)*f,by));
+  s+=light(cx[1]+rw(1)*.5,ym+50);
+  s+=light(cx[2]+rw(2)*.5,by);
+  const sock=(x,y)=>`<g stroke="${Y}" stroke-width="1.5" fill="none"><path d="M${x-5} ${y}a5 5 0 0 1 10 0"/><path d="M${x} ${y}V${y+7}"/></g>`;
+  s+=sock(cx[0]+rw(0)*.5,ym-12)+sock(cx[1]+rw(1)*.5,ym-12)+sock(cx[2]+rw(2)*.5,ym-12)+sock(cx[2]+rw(2)*.5,y1-16);
+  const dx=(cx[1]+cx[2])/2-11,dy=y1-32;
+  s+=`<rect x="${dx}" y="${dy}" width="22" height="12" fill="${Y}" fill-opacity=".3" stroke="${Y}" stroke-width="1.5"/>`;
+  s+=`<text x="${dx+11}" y="${dy+29}" font-size="10" fill="${Y}" text-anchor="middle">DB-G1</text>`;
+  if(o.picked)s+=`<rect id="${o.picked}" x="${dx-5}" y="${dy-5}" width="32" height="22" fill="none" stroke="#37d67a" stroke-width="3"/>`;
+  return s+'</svg>';
+}
+function sld(W,H,o){
+  const cx=W/2,dx=o.dx,oy=o.oy,M='#A3ABB5';
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#15171A"/>`;
+  s+=`<rect x="${cx-60}" y="${oy}" width="120" height="30" rx="3" fill="#26292E" stroke="${M}"/><text x="${cx}" y="${oy+19}" font-size="12" fill="#E6E8EB" text-anchor="middle">MDB-1</text>`;
+  s+=`<path d="M${cx} ${oy+30}V${oy+52}" stroke="${M}" stroke-width="1.5"/>`;
+  s+=`<rect x="${cx-dx-30}" y="${oy+50}" width="${2*dx+60}" height="4" fill="#ffb347"/>`;
+  const B=[['SMDB-1','Ground floor · Elec. room G.01'],['DB-G1','Ground floor · Elec. room G.01'],['DB-F1','First floor · Elec. room F.01']];
+  B.forEach((b,k)=>{
+    const x=cx+(k-1)*dx;
+    s+=`<path d="M${x} ${oy+54}V${oy+90}" stroke="${M}" stroke-width="1.5"/><path d="M${x-6} ${oy+66}L${x+6} ${oy+78}" stroke="${M}" stroke-width="1.5"/>`;
+    s+=`<rect x="${x-60}" y="${oy+90}" width="120" height="32" rx="3" fill="#26292E" stroke="${M}"/><text x="${x}" y="${oy+110}" font-size="12" fill="#E6E8EB" text-anchor="middle">${b[0]}</text>`;
+    s+=`<text x="${x}" y="${oy+138}" font-size="10" fill="${M}" text-anchor="middle">${b[1]}</text>`;
+  });
+  if(o.picked)s+=`<rect x="${cx-64}" y="${oy+86}" width="128" height="40" rx="4" fill="none" stroke="#F5B301" stroke-width="2"/>`;
+  return s+'</svg>';
+}
+function board(W,H){
+  const M='#A3ABB5',gap=(H-80)/6;
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#15171A"/>`;
+  s+=`<text x="30" y="28" font-size="13" font-weight="700" fill="#E6E8EB">DB-G1</text>`;
+  s+=`<rect x="28" y="46" width="4" height="${H-66}" fill="#ffb347"/>`;
+  ['C1 Lighting','C2 Lighting','C3 Sockets','C4 Sockets','C5 AC unit','C6 Spare'].forEach((t,i)=>{
+    const y=70+i*gap,mut=i===5;
+    s+=`<path d="M32 ${y}H640" stroke="${M}" stroke-width="1.5"/><path d="M78 ${y+6}L90 ${y-6}" stroke="${M}" stroke-width="1.5"/><circle cx="640" cy="${y}" r="3" fill="${M}"/>`;
+    s+=`<text x="110" y="${y-6}" font-size="12" fill="${mut?M:'#E6E8EB'}">${t}</text>`;
+  });
+  return s+'</svg>';
+}
+
+/* 1 Today */
+$('dtw-s1').innerHTML=win('Villa 12 — LV Design Studio',
+  rt('Design CAD')+sub('LVCAD')+tools(T_CAD)+dtabs({menu:CLOSE})+cv(plan(922,300),'height:300px;flex:none')+lt+cl()+sb);
+
+/* 2 close-ups */
+$('dtw-s2a').innerHTML=`<div class="dtw-app dtw-crop" style="height:176px">${dtabs({move:'Move Design CAD to a new window',menu:[{t:'Move to new window',ic:'win',nw:1},{sep:1},...CLOSE]})}</div>`;
+$('dtw-s2b').innerHTML=`<div class="dtw-app dtw-crop" style="height:92px">${sg([
+  {t:'System diagram',on:1,menu:menu([{t:'Move to new window',ic:'win',nw:1}],'left:0;top:32px')},{t:'Board: DB-G1'},{t:'Earthing'},{t:'Riser'}],{sheets:1,move:'Move System diagram to a new window'})}</div>`;
+
+/* 3 two monitors */
+$('dtw-m1').innerHTML=win('Villa 12 — LV Design Studio',
+  rt('SLD',{mark:'Design CAD'})+tools(T_SLD)+sg([{t:'System diagram',on:1},{t:'Board: DB-G1'},{t:'Earthing'},{t:'Riser'}],{sheets:1})+cbar+
+  cv(sld(898,374,{dx:250,oy:24,picked:1})+menu([{t:'Edit DB-G1…',k:'F2'},{t:'Load schedule'},{t:'Board diagram',k:'Ctrl+2'},{sep:1},{t:'Show on plan',hv:1,id:'dtw-showrow'},{t:'Zoom to DB-G1',k:'Z'},{sep:1},{t:'Properties'}],'left:462px;top:164px')+'<div style="position:absolute;left:462px;top:361px;font-size:10px;line-height:12px;color:var(--mut)">menu shortened</div>'),'','').replace('class="dtw-app dtw-win"','class="dtw-app dtw-win dtw-monw"');
+$('dtw-m2').innerHTML=win('Design CAD — Villa 12 — LV Design Studio',
+  sub('Electrical, ELV & sheets')+tools(T_ELEC)+dtabs({back:1})+cv(plan(898,344,{picked:'dtw-m2db'}))+lt+cl('Show on plan: DB-G1, Ground floor')+sb).replace('class="dtw-app dtw-win"','class="dtw-app dtw-win dtw-monw"');
+
+/* 4 main window while out */
+$('dtw-s4').innerHTML=win('Villa 12 — LV Design Studio',
+  rt('Design CAD',{mark:'Design CAD',tip:'Design CAD is in its own window. Click to bring it forward.'})+
+  cv(`<div class="dtw-card"><p>Design CAD is open in its own window.</p><div class="dtw-cb2"><div class="dtw-b1">Show window</div><div class="dtw-b2">Put back here</div></div></div>`,'height:300px;flex:none'));
+
+/* 5 SLD tab in own window */
+const back5=win('Villa 12 — LV Design Studio',
+  rt('SLD')+tools(T_SLD)+sg([{t:'System diagram',mark:1},{t:'Board: DB-G1',on:1},{t:'Earthing'},{t:'Riser'}],{sheets:1})+cbar+cv(board(922,334)),'position:absolute;left:0;top:0;width:924px;height:520px');
+const front5=win('System diagram — Villa 12 — LV Design Studio',
+  sg([{t:'System diagram',on:1}],{back:1})+cbar+cv(sld(558,238,{dx:185,oy:20,picked:1})),'position:absolute;left:260px;top:150px;width:560px;height:334px;z-index:5');
+$('dtw-s5').innerHTML=back5+front5;
+
+/* arrow */
+(function(){
+  const h=$('dtw-r3').getBoundingClientRect();
+  const a=$('dtw-showrow').getBoundingClientRect(),b=$('dtw-m2db').getBoundingClientRect();
+  const sx=a.right-h.left+4,sy=a.top+a.height/2-h.top;
+  const ex=b.left-h.left-8,ey=b.top+b.height/2-h.top;
+  const c1=[sx+150,sy-150],c2=[ex-120,ey-130];
+  const ang=Math.atan2(ey-c2[1],ex-c2[0]),L=13;
+  const p=d=>[ex-L*Math.cos(ang+d),ey-L*Math.sin(ang+d)];
+  const p1=p(.45),p2=p(-.45);
+  const sv=$('dtw-arrow');
+  sv.setAttribute('width',h.width);sv.setAttribute('height',h.height);
+  sv.innerHTML=`<path d="M${sx} ${sy}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${ex} ${ey}" fill="none" stroke="#F5B301" stroke-width="2.5" stroke-dasharray="7 5" stroke-linecap="round"/><path d="M${p1[0]} ${p1[1]}L${ex} ${ey}L${p2[0]} ${p2[1]}" fill="none" stroke="#F5B301" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+})();
+document.head.appendChild(document.createElement('style')).textContent='@page{size:1952px '+(Math.ceil(document.documentElement.scrollHeight)+4)+'px;margin:0}';
+</script>
+</body>
+</html>
