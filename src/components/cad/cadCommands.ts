@@ -158,6 +158,8 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['KN', 'KEYNOTE'], desc: 'A numbered hexagon keynote with a line in the legend', tool: 'keynote' },
   { aliases: ['DIM'], desc: 'Dimension: click a line, arc or circle (its length, radius or diameter), or two points', tool: 'dim' },
   { aliases: ['DAL', 'DIMALIGNED'], desc: 'Aligned dimension: two points, along them', tool: 'dimal' },
+  { aliases: ['QDIM'], desc: 'Quick dimension: pick the objects, then where the row of dimensions goes (Continuous or Baseline)', tool: 'qdim' },
+  { aliases: ['DIMSPACE'], desc: 'Adjust space: the base dimension, the dimensions to space, then the gap (Auto, or 0 to line them up)', tool: 'dimspace' },
   { aliases: ['DLI', 'DIMLINEAR'], desc: 'Linear dimension (horizontal or vertical)', tool: 'dimlin' },
   { aliases: ['DCO', 'DIMCONTINUE'], desc: 'Continue dimension', tool: 'dimcont' },
   { aliases: ['DBA', 'DIMBASELINE'], desc: 'Baseline dimension', tool: 'dimbase' },

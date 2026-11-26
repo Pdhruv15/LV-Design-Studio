@@ -90,7 +90,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
     expect(group('Annotate')).toBeNull(); // the LVCAD row had grown wider than a laptop's window
     pick('Annotate');
-    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Update', 'Dimension layer', 'Linear', 'Continue', 'Dimension styles'],
+    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Adjust space', 'Dimension layer', 'Update', 'Linear', 'Quick', 'Continue', 'Dimension styles'],
       ['Multileader', 'Multileader style', 'Add leader', 'Align', 'Room tag', 'Tag all rooms', 'Keynote'], ['Revision cloud', 'North arrow']]);
     expect(document.querySelector('.ribbon')!.className).toContain('small-named'); // named beside their icons, as on LVCAD
     const look = (subTabs: string[]) => {
