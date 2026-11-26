@@ -1,6 +1,6 @@
 # UI UX proposal – ELV device colour (2026-11-26)
 
-Status: **Approved 2026-11-26: the user answered "Go with recommendation" (F1 A, F2 rose, F3 yes). Being built.**
+Status: **Approved 2026-11-26: the user answered "Go with recommendation" (F1 A, F2 rose, F3 yes). Built (v2.320).**
 
 Decision F of the Devices tools proposal (2026-11-23).
 

@@ -2031,7 +2031,7 @@ svg .ph-tag.click{cursor:pointer}svg .ph-tag.click:hover rect{fill:color-mix(in 
 
 /* CAD view (DWG / DXF opened natively): model space, side panel, command line, status bar */
 /* Design CAD draws on the shared drawing surface; its colours are read from these on each draw (CadCanvas.tsx). */
-.cad{--cad-bg:var(--canvas-bg);--cad-ink:var(--canvas-ink);--cad-grid:var(--canvas-grid);--cad-grid-major:var(--canvas-grid-major);--cad-sketch:var(--res-cur);--cad-cross:var(--canvas-ink);--cad-snap:var(--ok);--cad-sel:var(--sel);--cad-dev:var(--warn);--cad-elv:var(--acc);display:flex;flex-direction:column;height:100%;border-top:1px solid var(--line)}
+.cad{--cad-bg:var(--canvas-bg);--cad-ink:var(--canvas-ink);--cad-grid:var(--canvas-grid);--cad-grid-major:var(--canvas-grid-major);--cad-sketch:var(--res-cur);--cad-cross:var(--canvas-ink);--cad-snap:var(--ok);--cad-sel:var(--sel);--cad-dev:var(--warn);--cad-elv:var(--elv-dev);display:flex;flex-direction:column;height:100%;border-top:1px solid var(--line)}
 .mid > .cad{flex:1 1 auto}
 /* The page fits the room under the ribbon: a taller minimum made the page column scroll on a short window, and focusing
    the command line scrolled the properties palette's top under the ribbon. Phones scroll the whole page instead. */
@@ -2513,7 +2513,7 @@ input.cad-dlg-ali{width:64px}
 /* Add device's gallery: Find, the devices placed last, the palette's groups; six to a row. It opens inside the
    ribbon's panel, so the rules below also undo what the ribbon gives its own buttons (one line of text, its hover). */
 .ribbon-split-pop{position:fixed;z-index:200}
-.cad-gallery{--cad-dev:var(--warn);--cad-elv:var(--acc);display:flex;flex-direction:column;gap:var(--space-2);width:392px;max-height:min(70vh,560px);padding:var(--space-2);background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow-pop)}
+.cad-gallery{--cad-dev:var(--warn);--cad-elv:var(--elv-dev);display:flex;flex-direction:column;gap:var(--space-2);width:392px;max-height:min(70vh,560px);padding:var(--space-2);background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow-pop)}
 .cad-gallery input{flex:none;width:100%;height:26px;padding:0 var(--space-2);font-size:var(--fs-sm)}
 .cad-gallery-list{display:grid;grid-template-columns:repeat(6,1fr);gap:var(--space-1);align-content:start;overflow-y:auto;min-height:0}
 .cad-gallery-list button{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;min-width:0;min-height:50px;padding:4px 1px;background:var(--p2);border:1px solid var(--line);border-radius:var(--radius-sm);font-size:10px;line-height:1.15;text-align:center;white-space:normal}

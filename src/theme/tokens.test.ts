@@ -28,6 +28,17 @@ const lum = (hex: string) => {
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 };
 const contrast = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+/** sRGB #rrggbb to CIE 1976 L*a*b* (D65). */
+const lab = (hex: string) => {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const xyz = [
+    (0.4124564 * c[0] + 0.3575761 * c[1] + 0.1804375 * c[2]) / 0.95047,
+    0.2126729 * c[0] + 0.7151522 * c[1] + 0.072175 * c[2],
+    (0.0193339 * c[0] + 0.119192 * c[1] + 0.9503041 * c[2]) / 1.08883
+  ].map((v) => (v > 216 / 24389 ? Math.cbrt(v) : (24389 / 27 * v + 16) / 116));
+  return [116 * xyz[1] - 16, 500 * (xyz[0] - xyz[1]), 200 * (xyz[1] - xyz[2])];
+};
+const deltaE = (a: string, b: string) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
 const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : /\.tsx?$/.test(f) ? [p] : []; });
 /** `a` at `k` over `b`, as #rrggbb. */
 const over = (a: string, b: string, k: number) =>
@@ -38,7 +49,7 @@ describe('design tokens', () => {
     // Neutral charcoal with the brand amber accent (since v2.032); status colours unchanged.
     expect(dark).toMatchObject({
       '--bg': '#15171A', '--panel': '#1D2024', '--p2': '#26292E', '--line': '#353A41', '--tx': '#E6E8EB', '--mut': '#A3ABB5',
-      '--acc': '#F5B301', '--bus': '#ffb347', '--ok': '#37d67a', '--warn': '#f5c04a', '--bad': '#ff5d6c',
+      '--acc': '#F5B301', '--elv-dev': '#ff5fa2', '--bus': '#ffb347', '--ok': '#37d67a', '--warn': '#f5c04a', '--bad': '#ff5d6c',
       '--line-strong': '#4A5058', '--on-acc': '#1D2024', '--field-line': '#6C7580', '--field-line-hover': '#8A939E',
       '--space-1': '4px', '--space-2': '8px', '--space-3': '12px', '--space-4': '16px', '--space-5': '24px',
       '--control-h': '32px', '--control-h-sm': '26px', '--radius-sm': '6px', '--radius-md': '9px', '--radius-lg': '12px',
@@ -52,6 +63,20 @@ describe('design tokens', () => {
     }
     expect(contrast(t['--on-acc'], t['--acc']), 'text on accent').toBeGreaterThanOrEqual(4.5);
     for (const bg of ['--panel', '--p2']) expect(contrast(t['--field-line'], t[bg]), `field edge on ${bg}`).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(THEMES)('keeps ELV devices apart from the other drawing colours in the %s theme', (_, t) => {
+    expect(contrast(t['--elv-dev'], t['--bg']), 'on --bg').toBeGreaterThanOrEqual(4.5);
+    for (const bg of ['--panel', '--p2']) expect(contrast(t['--elv-dev'], t[bg]), `on ${bg}`).toBeGreaterThanOrEqual(3);
+    for (const other of ['--warn', '--sel', '--acc', '--ok', '--res-cur']) expect(deltaE(t['--elv-dev'], t[other]), `colour difference to ${other}`).toBeGreaterThanOrEqual(10);
+  });
+
+  it('draws ELV devices in their own colour in the Design CAD and gallery rules', () => {
+    for (const sel of ['.cad{', '.cad-gallery{']) {
+      const start = styles.indexOf('\n' + sel);
+      expect(start, sel).toBeGreaterThanOrEqual(0);
+      expect(styles.slice(start, styles.indexOf('}', start)), sel).toContain('--cad-elv:var(--elv-dev)');
+    }
   });
 
   it('gives the light theme the same token names as the dark one', () => {

@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.320', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: ELV devices in a colour of their own', text: 'ELV devices on the plan, their Coverage circles and the ELV items of the device palette and gallery are now rose: lighter on the dark themes, deeper on the light ones. Before, they took the accent colour, so on Graphite they looked like LV devices and on Blueprint like selected objects. Plots and PDFs stay black-and-white.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.317', date: '2026-11-26',
     items: [
       { title: 'Dimensions: Arc length, Jogged radius and Ordinate', text: 'Under Linear\'s arrow (Annotate → Dimensions): Arc length (DAR) measures along an arc, with the arc sign over its text; Jogged radius (DJO) dimensions a large arc or circle from a centre you place, with a jog in its line; Ordinate (DOR) writes a point\'s x or y from a datum (D sets the datum for the drawing; X or Y forces which).', action: 'cad' }
