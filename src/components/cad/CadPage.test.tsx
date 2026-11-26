@@ -4767,6 +4767,64 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     await command('dimspace'); await clickAt(X + 1000, 1000); await clickAt(X + 1000, 1500); await clickAt(X + 1000, 2000); await command(''); await command('0');
     expect([yOf('D2'), yOf('D3')]).toEqual([1000, 1000]);
   });
+
+  const look = { arrow: 'filled' as const, size: 250, off: 100, ext: 200, unit: 'mm' as const, decimals: 0 };
+  const brkStart = (): Project => ({ ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
+    { id: 'D1', kind: 'dim', layer: 'LV-ANNO', pts: [[X, 0], [X + 4000, 0], [X + 2000, 1000]], dir: 0, look, h: 250 },
+    { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 1000, -500], [X + 1000, 3000]] }
+  ] }] });
+
+  it('DIMBREAK cuts a gap where a line crosses a dimension: Auto, at the object clicked, and Remove (v2.306)', async () => {
+    act(() => root.render(<Host start={brkStart()} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const d1 = () => project.cadSketch![0].items.find((it) => it.id === 'D1')!;
+    await command('dimbreak');
+    expect(last()).toContain('DIMBREAK  Select dimensions to add or remove breaks:');
+    await clickAt(X + 3000, 1000);
+    await command('');
+    expect(last()).toBe('DIMBREAK  Select objects to break the dimensions or [Auto/Remove] <Auto>:');
+    await command('');
+    await flush();
+    expect(d1().brk).toHaveLength(1);
+    expect(d1().brk![0][0]).toBe(0); expect(d1().brk![0][1]).toBeCloseTo(1000, 6);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('DIMBREAK  1 break in 1 dimension · ⌘Z to undo');
+    await command('dimbreak'); await clickAt(X + 3000, 1000); await command(''); await command('R');
+    await flush();
+    expect(d1().brk).toBeUndefined();
+    // At the object clicked.
+    await command('dimbreak'); await clickAt(X + 3000, 1000); await command('');
+    await clickAt(X + 1000, 2500);
+    expect(last()).toBe('DIMBREAK  1 object to break at — Enter when done');
+    await command('');
+    await flush();
+    expect(d1().brk).toHaveLength(1);
+  });
+
+  it('DIMTEDIT moves a dimension\'s text, puts it Left, turns it and sends it Home (v2.306)', async () => {
+    act(() => root.render(<Host start={brkStart()} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const d1 = () => project.cadSketch![0].items.find((it) => it.id === 'D1')!;
+    await command('dimtedit');
+    expect(last()).toContain('DIMTEDIT  Select dimension:');
+    await clickAt(X + 3000, 1000);
+    expect(last()).toBe('DIMTEDIT  Specify new location for dimension text or [Left/Right/Center/Home/Angle]:');
+    await clickAt(X + 3000, 2000);
+    expect(d1().pts).toHaveLength(4);
+    expect(d1().pts[3][0]).toBeCloseTo(X + 3000, 6); expect(d1().pts[3][1]).toBeCloseTo(2000, 6);
+    await command('dimtedit'); await clickAt(X + 3000, 1000); await command('L');
+    expect(d1().look?.textAlong).toBe('first');
+    expect(d1().pts).toHaveLength(3);
+    await command('dimtedit'); await clickAt(X + 3000, 1000); await command('A');
+    expect(last()).toBe('DIMTEDIT  Specify angle for dimension text (degrees, Enter: as drawn):');
+    await command('30');
+    expect(d1().rot).toBeCloseTo(Math.PI / 6, 9);
+    await command('dimtedit'); await clickAt(X + 3000, 1000); await command('H');
+    expect(d1().rot).toBeUndefined();
+    expect(d1().look?.textAlong).toBeUndefined();
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('DIMTEDIT  Text back where its style puts it · ⌘Z to undo');
+  });
 });
 
 describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to type over it', () => {

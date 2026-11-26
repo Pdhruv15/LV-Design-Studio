@@ -22,5 +22,9 @@ export const DimDiameterIcon = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="
 export const DimContinueIcon = (p: P) => <Svg {...p}><path d="M3 6v13M10 6v13M17 6v13M3 11h14" /><path d="M17 11h4M19 9l2 2-2 2" /></Svg>;
 /** Quick: a row of dimensions over a pick, at a stroke. */
 export const DimQuickIcon = (p: P) => <Svg {...p}><path d="M3 5v14M10 5v14M21 5v14M3 9h18" /><path d="M15 12l-2.5 3.5h3L13 20" /></Svg>;
+/** Break: a dimension line with a gap where a line crosses it. */
+export const DimBreakIcon = (p: P) => <Svg {...p}><path d="M3 6v13M21 6v13M3 11h6M15 11h6" /><path d="M12 3v18" /></Svg>;
+/** Text position: a dimension with its text lifted off the line. */
+export const DimTextIcon = (p: P) => <Svg {...p}><path d="M3 14v6M21 14v6M3 17h18" /><rect x="7.5" y="4" width="9" height="6" rx="1" /><path d="M12 10v3" /></Svg>;
 /** Baseline: each dimension from the same first line, one step further out. */
 export const DimBaselineIcon = (p: P) => <Svg {...p}><path d="M3 4v16M11 13v7M20 9v11M3 13h8M3 9h17" /></Svg>;

@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.316', date: '2026-11-26',
+    items: [
+      { title: 'Dimensions: Dimension break', text: 'Annotate → Dimensions → Dimension break (DIMBREAK, beside the style list): pick dimensions, Enter, then Enter again for a gap wherever a line crosses them: walls, other dimensions, the opened drawing. Or click the objects to break at first, then Enter. R takes the gaps off. The gaps stay where they are when the lines move: break again.', action: 'cad' },
+      { title: 'Dimensions: Text position', text: 'Text position (DIMTEDIT, beside the layer list): click a dimension, then where its text goes. Or type L or R for next to an extension line, C for centred, H for where its style puts it, or A and an angle to turn it. A text moved this way goes with the dimension when you move, copy or turn it.', action: 'cad' }
+    ]
+  },
+  {
     version: '2.314', date: '2026-11-26',
     items: [
       { title: 'Cable data by type: ratings built in', text: 'With Cable data by type on, PVC, aluminium and single-core cables now have built-in current ratings for the default installation method (free air / on a tray): industry-standard values, shown as reference values like the copper ones. These cables no longer show DATA REQUIRED there. Single cores smaller than 25 mm² take the multicore rating, which is the lower one. A row in Cables.xlsx still replaces a built-in value, and other installation methods still need their rating from your datasheet.' }

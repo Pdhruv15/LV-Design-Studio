@@ -634,6 +634,11 @@ export interface SketchItem {
   dimKind?: 'radius' | 'diameter' | 'angular';
   /** A dimension: the name of the dimension style it was drawn with, or last given (left out: Standard). */
   dimStyle?: string;
+  /** A linear or aligned dimension: the gaps in its lines where other lines cross them (Break, DIMBREAK): which line (0
+   * its dimension line, 1 and 2 its extension lines) and how far along it from its start (drawing units). Its text moved
+   * off its place (Text position, DIMTEDIT) is a fourth point, pts[3] (the text's middle); and a dimension's `rot` is the
+   * angle its text is turned to (radians), left out as drawn. */
+  brk?: [0 | 1 | 2, number][];
   /** An ellipse (centre in pts[0]): its major axis from the centre, and the minor axis as a fraction of it (0–1). */
   ax?: [number, number];
   ratio?: number;

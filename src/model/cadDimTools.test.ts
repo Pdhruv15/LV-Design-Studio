@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { sampleProject } from '../data/sampleProject';
-import { ANNO_LAYER, autoDimGap, dimDirFor, dimLayerOf, dimLayerSetting, dimPicksObject, pickedDimStyle, qdimPointsOf, qdimPointsOfDrawing, qdimPointsOfRun, quickDims, restyledDim, restyledDims, spacedDims, styleOfDim, USE_CURRENT, withDimLayer } from './cadDimTools';
-import { dimLabel, dimMeasure } from './cadSketch';
+import { ANNO_LAYER, autoDimGap, dimBreaksAt, dimTextAlong, dimTextAngle, dimTextAt, dimTextHome, styleTextAlong, withBreaks, dimDirFor, dimLayerOf, dimLayerSetting, dimPicksObject, pickedDimStyle, qdimPointsOf, qdimPointsOfDrawing, qdimPointsOfRun, quickDims, restyledDim, restyledDims, spacedDims, styleOfDim, USE_CURRENT, withDimLayer } from './cadDimTools';
+import { dimLabel, dimMeasure, dimOf, rotated, segmentsOf } from './cadSketch';
+import { mirrored, scaled } from './cadEdit';
 import { dimStylesOf, fullDimStyle } from './cadStyles';
 import type { Project, SketchItem } from '../types';
 
@@ -157,5 +158,78 @@ describe('Adjust space (DIMSPACE)', () => {
     expect(Math.hypot(at[0], at[1])).toBeCloseTo(800);
     expect(autoDimGap({ h: 250 }, 100)).toBe(500);
     expect(autoDimGap({}, 100)).toBe(200);
+  });
+});
+
+describe('Break (DIMBREAK)', () => {
+  // A 4 000 long dimension above a wall, its line at y 1 000; a wall at x 1 000 crosses its line and nothing else, a
+  // pipe along y 500 crosses both extension lines.
+  const look = { arrow: 'filled' as const, size: 250, off: 100, ext: 200, unit: 'mm' as const, decimals: 0 };
+  const d = dim('D1', { pts: [[0, 0], [4000, 0], [2000, 1000]], dir: 0, look, h: 250 });
+  const wall: [[number, number], [number, number]] = [[1000, -500], [1000, 3000]];
+  const pipe: [[number, number], [number, number]] = [[-500, 500], [4500, 500]];
+  it('finds a gap where each line is crossed, how far along that line', () => {
+    const b = dimBreaksAt(d, [wall, pipe], 0.001);
+    expect(b.map(([e]) => e).sort()).toEqual([0, 1, 2]);
+    const onDim = b.find(([e]) => e === 0)!;
+    expect(onDim[1]).toBeCloseTo(1000); // from the dimension line's start, at x 0
+    expect(b.find(([e]) => e === 1)![1]).toBeCloseTo(400); // the extension line starts 100 off the point
+  });
+  it('cuts the gaps out of the lines drawn, the arrows and text staying', () => {
+    const broken = withBreaks(d, dimBreaksAt(d, [wall, pipe], 0.001)), whole = dimOf(d, 0.001), cut = dimOf(broken, 0.001);
+    expect(cut.lines.length).toBe(whole.lines.length + 3);
+    expect(cut.text).toEqual(whole.text);
+    // No piece of the dimension line covers x 1 000; the gap is 1.5 arrows long.
+    const pieces = cut.lines.filter(([a, b]) => a[1] === 1000 && b[1] === 1000 && Math.abs(b[0] - a[0]) > 300); // not the arrows
+    expect(pieces.some(([a, b]) => Math.min(a[0], b[0]) < 1000 && Math.max(a[0], b[0]) > 1000)).toBe(false);
+    expect(pieces.map(([a, b]) => Math.abs(b[0] - a[0])).reduce((x, y) => x + y, 0)).toBeCloseTo(4000 - 375);
+    expect(segmentsOf(broken, 0.001)).toHaveLength(cut.lines.length); // what is snapped to, picked and saved
+  });
+  it('leaves out crossings at a line\'s ends, and none or no dimension gives none; withBreaks [] takes them off', () => {
+    expect(dimBreaksAt(d, [[[0, -100], [0, 50]]], 0.001)).toEqual([]); // at the measured point
+    expect(dimBreaksAt({ ...d, dimKind: 'radius' }, [wall], 0.001)).toEqual([]);
+    expect(withBreaks({ ...d, brk: [[0, 10]] }, []).brk).toBeUndefined();
+  });
+  it('keep their places through move, rotate and mirror, and grow with scale', () => {
+    const b = withBreaks(d, [[0, 1000]]);
+    const turned = rotated(b, [0, 0], Math.PI / 2), big = scaled(b, [0, 0], 2), flipped = mirrored(b, [0, 0], [0, 10]) as typeof b;
+    expect(turned.brk).toEqual([[0, 1000]]);
+    expect(big.brk).toEqual([[0, 2000]]);
+    expect(flipped.brk).toEqual([[0, 1000]]);
+  });
+});
+
+describe('Text position (DIMTEDIT)', () => {
+  const look = { arrow: 'filled' as const, size: 250, off: 100, ext: 200, unit: 'mm' as const, decimals: 0 };
+  const d = dim('D1', { pts: [[0, 0], [4000, 0], [2000, 1000]], dir: 0, look, h: 250 });
+  it('moves the text to a point, its middle there, and Home brings it back', () => {
+    const moved = dimTextAt(d, [3000, 1800]);
+    expect(moved.pts).toHaveLength(4);
+    const t = dimOf(moved, 0.001);
+    expect(t.text[0]).toBeCloseTo(3000); expect(t.text[1]).toBeCloseTo(1800 - 125);
+    expect(dimOf(moved, 0.001).lines).toEqual(dimOf(d, 0.001).lines); // the lines stay
+    expect(dimTextHome(moved, undefined).pts).toHaveLength(3);
+  });
+  it('puts it next to an extension line or centred, as its look says; none for one drawn before styles', () => {
+    const left = dimTextAlong(dimTextAt(d, [0, 0]), 'first')!;
+    expect(left.look?.textAlong).toBe('first');
+    expect(left.pts).toHaveLength(3);
+    expect(dimOf(left, 0.001).text[0]).toBeLessThan(dimOf(d, 0.001).text[0]);
+    expect(dimTextAlong(left, undefined)!.look?.textAlong).toBeUndefined();
+    expect(dimTextAlong({ ...d, look: undefined }, 'first')).toBeUndefined();
+  });
+  it('turns the text to an angle, back as drawn with none, and Home puts the style\'s place back', () => {
+    const turned = dimTextAngle(d, 30);
+    expect(dimOf(turned, 0.001).angle).toBeCloseTo(Math.PI / 6);
+    expect(dimTextAngle(turned, undefined).rot).toBeUndefined();
+    expect(rotated(turned, [0, 0], Math.PI / 2).rot).toBeCloseTo(Math.PI / 6 + Math.PI / 2);
+    const home = dimTextHome({ ...turned, look: { ...look, textAlong: 'second' } }, 'first');
+    expect(home.rot).toBeUndefined(); expect(home.look?.textAlong).toBe('first');
+    const radial: SketchItem = { id: 'R', kind: 'dim', dimKind: 'radius', layer: ANNO_LAYER, pts: [[0, 0], [100, 0], [200, 0]], rot: 1 };
+    expect(dimOf(radial, 0.001).angle).toBe(1);
+    expect(dimTextHome(radial, undefined).pts).toHaveLength(3);
+  });
+  it('reads the style\'s place along the line for Home', () => {
+    expect(styleTextAlong(p, dim('D1'))).toBeUndefined();
   });
 });
