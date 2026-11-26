@@ -92,6 +92,10 @@ describe('engineering input checks', () => {
   it('transformer data: zero is a failure, an unusually high %Z a warning', () => {
     const bad = tree(); bad.boards[0] = { ...bad.boards[0], sourceKva: 0 };
     expect(projectInputIssues(bad)[0]).toMatchObject({ status: 'bad', text: 'Panel MDB: transformer rating 0 kVA (must be above 0)' });
+    const kv = tree(); kv.boards[0] = { ...kv.boards[0], sourcePrimaryKv: 0, sourceTapPct: 12 };
+    expect(projectInputIssues(kv)[0]).toMatchObject({ status: 'bad', text: 'Panel MDB: transformer primary voltage 0 kV (must be above 0); transformer tap 12 % (must be between -10 and 10)' });
+    const ok = tree(); ok.boards[0] = { ...ok.boards[0], sourcePrimaryKv: 22, sourceTapPct: -2.5 };
+    expect(projectInputIssues(ok).filter((i) => i.text.includes('transformer'))).toEqual([]);
     const high = tree(); high.boards[0] = { ...high.boards[0], sourceImpedancePct: 45 };
     expect(projectInputIssues(high)[0].status).toBe('warn');
   });

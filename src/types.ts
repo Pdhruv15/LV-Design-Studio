@@ -430,6 +430,8 @@ export interface Board {
   sourceImpedancePct?: number; // transformer impedance %, only on main board
   sourceXr?: number; // transformer X/R ratio, only on main board (default 5)
   vectorGroup?: string; // transformer vector group, e.g. "Dyn11" (default)
+  sourcePrimaryKv?: number; // transformer primary voltage, kV; absent = the grid source's voltage, else 11
+  sourceTapPct?: number; // off-circuit tap on the primary winding, % (-5 to +5, absent = 0); a minus tap raises the secondary voltage
   // Descriptive / equipment data (all optional, shown in the properties panel)
   kind?: BoardKind;
   ratedCurrentA?: number; // busbar / main device rating, used for board loading

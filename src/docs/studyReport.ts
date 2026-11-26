@@ -1,5 +1,6 @@
 import { pageTitleBlock } from './sldSheet';
 import { factorsText } from '../calc/installation';
+import { tapBoostPct } from '../calc/transformerVoltage';
 import { cableDataNotice } from '../calc/cableTable';
 import { CALC_DISCLAIMER } from '../calc/statusText';
 import { REPORT_STATUS_TEXT, STATUS_TEXT, statusOfText, type ReportStatus } from '../calc/statusText';
@@ -251,6 +252,7 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         'Balanced 3-phase load flow from the design loads: demand = connected load × demand factor, summed up the network (kW and kVAr separately).',
         `Voltage drop per cable: √3 · I · L · (R cosφ + X sinφ) for 3-phase, 2 · I · L · (…) for single-phase; busbar voltage = nominal minus the drops of the incomers above it. Limit ${p.vdLimitPct} % from the main board to the load.`,
         'Transformer regulation is not included (busbar voltages are measured from the main LV busbar).',
+        ...(p.boards.some((b) => !b.upstreamId && b.sourceKva && b.sourceImpedancePct && tapBoostPct(b)) ? ['Transformer tap: the no-load secondary voltage on the set tap is counted at the main board (tap −2.5 % gives +2.56 %).'] : []),
         `Motors: drop while starting = upstream drop + cable drop × the starter's starting-current multiple; limit ${motorStartVdLimit()} %.`
       ],
       summary: [

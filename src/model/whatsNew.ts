@@ -18,6 +18,13 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.313', date: '2026-11-26',
+    items: [
+      { title: 'Transformer primary voltage and tap', text: 'On the board form of a main board with a transformer, Primary voltage and Tap now sit beside Vector group. Pick the primary voltage from the usual list (it shows on the SLD and schedules), and a tap of −5 to +5 %. A minus tap raises the secondary voltage, so the voltage drop at every board is lower by that amount (tap −2.5 % gives +2.56 %); a plus tap does the opposite. Nothing changes until a tap is set.' },
+      { title: 'Voltage lists', text: 'The system voltage box in Project settings now offers more of the usual voltages, and the Vector group box suggests the usual groups. Typing another vector group still works.' }
+    ]
+  },
+  {
     version: '2.312', date: '2026-11-26',
     items: [
       { title: 'Design CAD: Copy to levels', text: 'Level → Copy to levels (CL) now opens a window: tick what to copy (lights, sockets and equipment; switches and boxes; each ELV system) and the levels to copy to. For each board of this level choose the board on the other level: a light or socket goes on the same way of that board and counts on that circuit, as placing it by hand does. Where the way is missing, its devices are listed and left out. Replace first takes off what those levels already hold. One undo step for all levels. A typical level is one plan: the boards of its other floors are not changed.', action: 'cad', actionLabel: 'Open Design CAD' }

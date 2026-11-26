@@ -7,6 +7,7 @@ import { RuleRows, newRule } from './docs/RuleRows';
 import { ruleIssues } from '../model/designRules';
 import { fmtDate } from '../util/format';
 import { DEFAULT_BASE_MVA } from '../calc/perUnit';
+import { LV_VOLTAGES_V } from '../calc/transformerVoltage';
 
 type SettingsTab = 'system' | 'targets' | 'forms' | 'schedule';
 const SETTINGS_TABS: [SettingsTab, string][] = [['system', 'System & limits'], ['targets', 'Sizing targets'], ['forms', 'Submission forms'], ['schedule', 'Load schedule']];
@@ -60,7 +61,7 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
         <div className="grid2">
         <label>System voltage (V, phase-phase)
           <select value={p.voltageV} onChange={(e) => set('voltageV', +e.target.value)}>
-            {[380, 400, 415, 440, 480].map((v) => <option key={v} value={v}>{v} V</option>)}
+            {[...new Set([380, 400, 415, 440, 480, ...LV_VOLTAGES_V, p.voltageV])].sort((x, y) => x - y).map((v) => <option key={v} value={v}>{v} V</option>)}
           </select>
         </label>
         <label>Frequency

@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { ask } from './ConfirmDialog';
 import { INSTALL_METHODS, cables, type InstallMethod } from '../calc/cableTable';
-import { DEFAULT_TRANSFORMER_XR, GENERATOR_XD_SUBTRANSIENT_PCT, GENERATOR_XD_TRANSIENT_DEFAULT_PCT, GENERATOR_XR, INVERTER_FAULT_MULTIPLE, assumedSourceFaultKa, levelKaText, supplySourceLevel } from '../calc/electrical';
+import { DEFAULT_TRANSFORMER_XR, GENERATOR_XD_SUBTRANSIENT_PCT, GENERATOR_XD_TRANSIENT_DEFAULT_PCT, GENERATOR_XR, INVERTER_FAULT_MULTIPLE, assumedSourceFaultKa, gridSourceOf, levelKaText, supplySourceLevel } from '../calc/electrical';
 import { supplyAllowedA } from '../calc/summary';
 import { fmtFixed } from '../util/format';
 import { supplyNameSuggestion } from '../model/designReference';
@@ -143,7 +143,7 @@ export default function SupplyFields({ project, board, onChange }: { project: Pr
         <>
           <div className="form-kv"><h4 className="kv-head">Transformer</h4></div>
           {!board.sourceKva && <p className="m warn">No transformer rating yet — enter it below.</p>}
-          <BoardFields board={board} onChange={(nb) => { if (!nb.sourceKva) setHeld(nb.id); onChange(nb); }} section="source" />
+          <BoardFields board={board} onChange={(nb) => { if (!nb.sourceKva) setHeld(nb.id); onChange(nb); }} section="source" sourceKv={gridSourceOf(project, board)?.kv} />
         </>
       )}
       {mode === 'source' && (

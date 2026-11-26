@@ -84,6 +84,8 @@ export function pasteBoard(project: Project, sourceId: string, targetBusId: stri
         delete copy.sourceKva;
         delete copy.sourceImpedancePct;
         delete copy.sourceXr;
+        delete copy.sourcePrimaryKv;
+        delete copy.sourceTapPct;
       } else copy.upstreamId = plan.boards.get(b.upstreamId!) ?? b.upstreamId;
       if (copy.location === undefined) delete copy.location;
       return copy;
