@@ -1,4 +1,5 @@
 import type { Board, GridSource, Project, Rmu } from '../types';
+import { transformerPrimaryKv } from './transformerVoltage';
 import { C_MV, DEFAULT_GRID_XR, gridFaultMva, gridSourceOf, type Status } from './electrical';
 
 /** MV supply and RMUs: the grid source's fault level and the RMU ratings checked against it. */
@@ -94,9 +95,14 @@ export function rmuLabel(project: Project, name: string): string {
   return [name, r?.config, kv ? `${num(kv)} kV` : '11 kV'].filter(Boolean).join(' · ');
 }
 
-/** MV voltage of a main board's transformer primary as the labels write it (11, 22, 6.6): that of the grid source
- * feeding it (`gridSourceOf`: the one its RMU names, else the project's first), 11 without one. */
+/** MV voltage of a main board's transformer primary as the labels write it (11, 22, 6.6): the typed primary voltage,
+ * else that of the grid source feeding it (`gridSourceOf`: the one its RMU names, else the project's first), else 11. */
 export function txKv(project: Project, board: Board): string {
+  return num(transformerPrimaryKv(project, board));
+}
+
+/** MV voltage of the grid source feeding a main board (what its RMU is rated on), as the labels write it. */
+export function gridKv(project: Project, board: Board): string {
   const kv = gridSourceOf(project, board)?.kv;
   return num(kv && kv > 0 ? kv : 11);
 }

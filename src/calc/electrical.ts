@@ -7,6 +7,7 @@ import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
 import { SOURCE_KINDS, lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type GridSource, type Project } from '../types';
 import { boardPhasePQ, type PhasePQ } from './loadSchedule';
+import { tapBoostPct } from './transformerVoltage';
 import { fmtFixed } from '../util/format';
 import { checkLimits, type LimitCheck } from './authorityLimits';
 
@@ -192,10 +193,14 @@ export function upstreamVoltageDropPct(project: Project, boardId: string, seen =
   const board = boardOf(project, boardId);
   if (!board || seen.has(boardId)) return 0;
   // A first board on an LV supply starts at the drop already used upstream plus its incoming cable.
-  if (!board.upstreamId) return lvSupplied(board) ? memoized(project, `vdUp:${boardId}`, () => supplyVoltageDropPct(project, board)) : 0;
+  if (!board.upstreamId) return lvSupplied(board) ? memoized(project, `vdUp:${boardId}`, () => supplyVoltageDropPct(project, board)) : transformerTapDropPct(board);
   seen.add(boardId);
   return memoized(project, `vdUp:${boardId}`, () => upstreamVdOf(project, board, seen));
 }
+
+/** Start of the drop at a first board with a transformer: minus the secondary-voltage boost of its tap (a credit for a
+ * minus tap, a debit for a plus tap). Zero without a tap, or without a transformer. */
+const transformerTapDropPct = (board: Board): number => (board.sourceKva && board.sourceImpedancePct && tapBoostPct(board) ? -tapBoostPct(board) : 0);
 
 /** The drop already used upstream of the supply point (%): the given value when it is a number above zero, else 0. */
 export const supplyVdUsedPct = (board: Board): number => { const v = board.supply?.vdUsedPct; return v !== undefined && Number.isFinite(v) && v > 0 ? v : 0; };

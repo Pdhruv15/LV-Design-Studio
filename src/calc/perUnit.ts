@@ -1,4 +1,5 @@
 import { C_MAX, C_MV, localSources, MOTOR_LOCKED_ROTOR_MULTIPLE, cableImpedance, cableSizeText, DEFAULT_GRID_XR, DEFAULT_TRANSFORMER_XR, faultCurrentKA, gridFaultMva, gridImpedance, gridSourceOf, impedanceToBoard, runsOf, supplySourceLevel, transformerImpedance, type Impedance } from './electrical';
+import { transformerPrimaryKv } from './transformerVoltage';
 import { feederFamily } from './cableFamily';
 import { lvSupplied, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type Project } from '../types';
 
@@ -48,7 +49,7 @@ export function puElements(project: Project, boardIds?: Set<string>): PuElement[
         out.push({ element: `Source ${g.name || g.id}`, data: `${n(g.kv)} kV, ${n(gridFaultMva(g)!)} MVA, X/R ${n(g.xr && g.xr > 0 ? g.xr : DEFAULT_GRID_XR)}`, baseKv: n(g.kv), pu: toPu(zq, base), how: `c (${C_MV}) × base MVA ÷ fault MVA` });
       }
       out.push({
-        element: `Transformer at ${b.id}`, data: `${n(b.sourceKva)} kVA, ${n(b.sourceImpedancePct)} %, X/R ${n(b.sourceXr ?? DEFAULT_TRANSFORMER_XR)}`, baseKv: `${g ? n(g.kv) : '—'} / ${lvKv}`,
+        element: `Transformer at ${b.id}`, data: `${n(b.sourceKva)} kVA, ${n(b.sourceImpedancePct)} %, X/R ${n(b.sourceXr ?? DEFAULT_TRANSFORMER_XR)}`, baseKv: `${n(transformerPrimaryKv(project, b))} / ${lvKv}`,
         pu: toPu(transformerImpedance(b.sourceKva, b.sourceImpedancePct, project.voltageV, b.sourceXr), base), how: 'Z % × base MVA ÷ rated MVA'
       });
     } else if (lvSupplied(b)) {

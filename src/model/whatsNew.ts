@@ -24,6 +24,13 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.323', date: '2026-11-26',
+    items: [
+      { title: 'Transformer primary voltage and tap', text: 'On the board form of a main board with a transformer, Primary voltage and Tap now sit beside Vector group. Pick the primary voltage from the usual list (it shows on the SLD and schedules), and a tap of −5 to +5 %. A minus tap raises the secondary voltage, so the voltage drop at every board is lower by that amount (tap −2.5 % gives +2.56 %); a plus tap does the opposite. Nothing changes until a tap is set.' },
+      { title: 'Voltage lists', text: 'The system voltage box in Project settings now offers more of the usual voltages, and the Vector group box suggests the usual groups. Typing another vector group still works.' }
+    ]
+  },
+  {
     version: '2.322', date: '2026-11-26',
     items: [
       { title: 'Generator in parallel with the supply', text: 'A board with a standby generator has a new tick box, Runs in parallel with the supply. Tick it for a set that is synchronised with the supply: its fault current then adds to the supply\'s at that board, and reaches the boards above and below through the cables. Left unticked (a set behind a changeover) nothing changes.' },
