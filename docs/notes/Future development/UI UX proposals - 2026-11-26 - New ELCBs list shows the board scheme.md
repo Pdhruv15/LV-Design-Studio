@@ -1,6 +1,6 @@
 # UI UX proposal – Load schedule: the New ELCBs list shows the board scheme (2026-11-26)
 
-Status: **approved on 2026-11-26** ("go with recommended": A + B). Built in v2.313; the list is a drop-down, so the footer text is its hover tip. Follow-up to the earth leakage plan (`UI UX proposals - 2026-11-23 - Load schedule earth leakage.md`, step 5, v2.304).
+Status: **approved on 2026-11-26** ("go with recommended": A + B). Built in v2.315; the list is a drop-down, so the footer text is its hover tip. Follow-up to the earth leakage plan (`UI UX proposals - 2026-11-23 - Load schedule earth leakage.md`, step 5, v2.304).
 
 ![New ELCBs list with the board schemes](../../mockups/load-schedule-new-elcbs-scheme-mockup.png)
 

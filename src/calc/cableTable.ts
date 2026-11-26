@@ -1,6 +1,6 @@
 import { supplyIncomerFeeder, type Feeder, type Project } from '../types';
 import { forgetNetworks } from './network';
-import { AL_R20_OHM_PER_KM, DEFAULT_FAMILY, familyKey, familyLabel, feederFamily, familyOfType, isDefaultFamily, maxTempOf, singleCoreXOhmPerKm, type CableFamily } from './cableFamily';
+import { AL_R20_OHM_PER_KM, familyRatingA, DEFAULT_FAMILY, familyKey, familyLabel, feederFamily, familyOfType, isDefaultFamily, maxTempOf, singleCoreXOhmPerKm, type CableFamily } from './cableFamily';
 
 // Reference data for copper, XLPE-insulated, steel-wire-armoured (SWA) cable,
 // 4-core, laid in free air at 30°C ambient — a common LV distribution cable
@@ -158,16 +158,17 @@ export const REFERENCE_DATA_NOTICE = 'Cable data: app reference values (approxim
 
 const sameValues = (a: CableSpec, b: CableSpec) => a.rOhmPerKm20C === b.rOhmPerKm20C && a.xOhmPerKm === b.xOhmPerKm && a.ampacityA === b.ampacityA;
 
-/** The app's own values for a size of another cable family: R at 20 °C from IEC 60228 (aluminium) or the
+/** The app's own values for a size of another cable family: R at 20 °C from the aluminium table or the
  * reference table (copper); X of the reference table for a multicore cable (the same geometry) or calculated for
- * single cores. No current rating is built in (NaN): the rating must come from Cables.xlsx, nothing is substituted. */
+ * single cores; the family's built-in current rating for the default installation method (familyRatingA). A size
+ * with no built-in rating has none (NaN): it must come from Cables.xlsx, nothing is substituted. */
 function builtInFamilySpec(csaMm2: number, family: CableFamily): CableSpec | null {
   const key = `${familyKey(family)}|${csaMm2}`;
   if (!builtInFamily.has(key)) {
     const ref = REFERENCE_CABLE_TABLE.find((c) => c.csaMm2 === csaMm2);
     const r = family.conductor === 'al' ? AL_R20_OHM_PER_KM[csaMm2] : ref?.rOhmPerKm20C;
     const x = family.form === 'multi' ? ref?.xOhmPerKm : singleCoreXOhmPerKm(csaMm2, family.form);
-    builtInFamily.set(key, r && x ? { csaMm2, rOhmPerKm20C: r, xOhmPerKm: x, ampacityA: NaN, family } : null);
+    builtInFamily.set(key, r && x ? { csaMm2, rOhmPerKm20C: r, xOhmPerKm: x, ampacityA: familyRatingA(family, csaMm2) ?? NaN, family } : null);
   }
   return builtInFamily.get(key)!;
 }
