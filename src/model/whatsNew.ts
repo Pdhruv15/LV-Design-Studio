@@ -18,10 +18,46 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.306', date: '2026-11-25',
+    version: '2.316', date: '2026-11-26',
     items: [
       { title: 'Dimensions: Dimension break', text: 'Annotate → Dimensions → Dimension break (DIMBREAK, beside the style list): pick dimensions, Enter, then Enter again for a gap wherever a line crosses them: walls, other dimensions, the opened drawing. Or click the objects to break at first, then Enter. R takes the gaps off. The gaps stay where they are when the lines move: break again.', action: 'cad' },
       { title: 'Dimensions: Text position', text: 'Text position (DIMTEDIT, beside the layer list): click a dimension, then where its text goes. Or type L or R for next to an extension line, C for centred, H for where its style puts it, or A and an angle to turn it. A text moved this way goes with the dimension when you move, copy or turn it.', action: 'cad' }
+    ]
+  },
+  {
+    version: '2.314', date: '2026-11-26',
+    items: [
+      { title: 'Cable data by type: ratings built in', text: 'With Cable data by type on, PVC, aluminium and single-core cables now have built-in current ratings for the default installation method (free air / on a tray): industry-standard values, shown as reference values like the copper ones. These cables no longer show DATA REQUIRED there. Single cores smaller than 25 mm² take the multicore rating, which is the lower one. A row in Cables.xlsx still replaces a built-in value, and other installation methods still need their rating from your datasheet.' }
+    ]
+  },
+  {
+    version: '2.312', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: Copy to levels', text: 'Level → Copy to levels (CL) now opens a window: tick what to copy (lights, sockets and equipment; switches and boxes; each ELV system) and the levels to copy to. For each board of this level choose the board on the other level: a light or socket goes on the same way of that board and counts on that circuit, as placing it by hand does. Where the way is missing, its devices are listed and left out. Replace first takes off what those levels already hold. One undo step for all levels. A typical level is one plan: the boards of its other floors are not changed.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.310', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Socket room', text: 'Devices → Socket room (SOCK): point at a room to see sockets along its walls at the spacing you set, each turned to face into the room. Click a wall to leave it out, click a socket to take it off, then Place. The panel shows the circuits used before placing: 13 A sockets go on to the next circuit with room at the most the Rules sheet allows. Also on a room\'s right-click list.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.309', date: '2026-11-25',
+    items: [
+      { title: 'Room devices: all rooms like this', text: 'Room devices now has Rooms too: This room, Same type, Whole level. One approval places the template in every room of the choice: each room\'s lights on one lighting circuit (going on to the next with room), its twin sockets on the power circuit, and the ELV devices. Rooms that cannot be done are listed and left out. One undo step; up to 40 rooms and 400 devices a run.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.308', date: '2026-11-25',
+    items: [
+      { title: 'Fill room and Light room: all rooms like this', text: "Both tools now have Rooms: This room, Same type, Whole level. Fill room then places the ELV device in every room of that type on the level, or in every room, with one click; Light room works out each room for its own outline and puts each room's lights on one circuit, going on to the next lighting circuit with room when one is full. Rooms that fit on no circuit are listed and left out. One undo step; up to 40 rooms and 400 ELV devices a run.", action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
+    version: '2.307', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Check level', text: 'Level → Check level (CHK) lists what to look at on the level showing: rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the most the Rules sheet allows, devices on a removed circuit or outside every room, ELV coverage gaps by system and boards not yet on the plan, with the counts by type. Click a line to go there; some lines open Light room or Coverage. It is worked out when you ask, and Check again repeats it.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

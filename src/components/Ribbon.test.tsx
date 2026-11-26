@@ -104,7 +104,7 @@ describe('Ribbon', () => {
   });
 
   /** Design CAD's actions with a drawing open (or not), every action a no-op. */
-  const cad = (over: Partial<NonNullable<RibbonActions['cad']>> = {}) => ({ hasDrawing: true, file: { plans: [], level: 'Ground', levelTitle: '', levels: [], unit: 'mm', unitTitle: '', units: [] }, copyLevels: [], ...over }) as unknown as RibbonActions['cad'];
+  const cad = (over: Partial<NonNullable<RibbonActions['cad']>> = {}) => ({ hasDrawing: true, file: { plans: [], level: 'Ground', levelTitle: '', levels: [], unit: 'mm', unitTitle: '', units: [] }, onCopyLevels: () => {}, ...over }) as unknown as RibbonActions['cad'];
   const subTabs = (html: string) => [...(/role="tablist" aria-label="Design CAD">(.*?)<\/div>/s.exec(html)?.[1] ?? '').matchAll(/role="tab"[^>]*>([^<]+)</g)].map((m) => m[1]);
   const groupsOf = (html: string) => [...html.matchAll(/role="group" aria-label="([^"]+)"/g)].map((m) => m[1]);
 

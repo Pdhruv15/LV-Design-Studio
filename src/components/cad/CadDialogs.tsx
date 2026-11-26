@@ -24,8 +24,8 @@ const inView = (p: Pos): Pos => ({ left: Math.min(Math.max(0, p.left), Math.max(
 const placeOf = (id: string): Pos => { try { const p = JSON.parse(localStorage.getItem(POS(id)) ?? 'null') as Pos | null; if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) return inView(p); } catch { /* not remembered */ } return { left: 12 + (document.querySelector<HTMLElement>('.cad-work > .cad-dock.left')?.offsetWidth ?? 0), top: 12 }; };
 
 /** The dialog's frame: title (dragged to move it), body rows, and ? / Cancel / OK. */
-export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', wide, pages, form, cls, extra, onKeyDown, children }: {
-  id: string; title: string; alias?: string; help?: string; onOk: () => void; onClose: () => void; okLabel?: string;
+export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK', okDisabled, okTitle, wide, pages, form, cls, extra, onKeyDown, children }: {
+  id: string; title: string; alias?: string; help?: string; onOk: () => void; onClose: () => void; okLabel?: string; okDisabled?: boolean; okTitle?: string;
   /** A wider dialog (Save As), and buttons before Cancel. */
   wide?: boolean; extra?: ReactNode; children: ReactNode;
   /** A page list on the left and the page on the right (Options, which sets its own width with `cls`): 480 px. */
@@ -64,7 +64,7 @@ export function CadDialog({ id, title, alias, help, onOk, onClose, okLabel = 'OK
         {help && <button type="button" className="q" aria-label="Help" aria-pressed={showHelp} onClick={() => setShowHelp(!showHelp)}>?</button>}
         {extra}
         <button type="button" onClick={onClose}>Cancel</button>
-        <button type="button" className="p" onClick={onOk}>{okLabel}</button>
+        <button type="button" className="p" disabled={okDisabled} title={okTitle} onClick={onOk}>{okLabel}</button>
       </div>
     </div>
   );

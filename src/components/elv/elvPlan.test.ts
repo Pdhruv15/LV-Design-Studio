@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../../types';
-import { canFill, copyTo, coverageNote, deviceNear, elvLayer, fillAt, moveTo, placeAt, remove, rotate } from './elvPlan';
+import { canFill, copySystems, coverageGaps, coverageNote, deviceNear, elvLayer, FILL_MAX, fillAt, fillRooms, moveTo, placeAt, remove, rotate, systemCounts } from './elvPlan';
 
 const box = (x1: number, y1: number, x2: number, y2: number): [number, number][] => [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
 const L1 = { building: 'B', level: 'L1' };
@@ -54,6 +54,23 @@ describe('ELV layer of the Floor plan page', () => {
     expect([canFill('smoke-detector'), canFill('ceiling-speaker'), canFill('camera')]).toEqual([true, true, false]);
   });
 
+  it('fills several rooms in one change, previews them, and stops at the limit of a run', () => {
+    const rooms = [{ name: 'Office', outline: box(0, 0, 20, 10) }, { name: 'Store', outline: box(30, 0, 40, 10) }];
+    const r = fillRooms(project(), L1, 'smoke-detector', rooms);
+    expect(r).toMatchObject({ placed: 3, left: 0, message: '2 rooms: 3 smoke detectors placed · ⌘Z to undo' });
+    expect(r.next!.elvDevices!.map((d) => d.roomId)).toEqual(['R1', 'R1', undefined]);
+    const preview = elvLayer(project(), L1, MM, { system: 'fire-alarm', coverage: false, selected: null, preview: { type: 'smoke-detector', at: [3, 3], rooms: rooms.map((x) => x.outline) } });
+    expect(preview.symbols.filter((s) => s.ghost).map((s) => s.at[0] > 25000)).toEqual([false, false, true]);
+    expect(fillRooms(project(), L1, 'call-point', rooms)).toMatchObject({ placed: 0, left: 0, message: expect.stringMatching(/no coverage spacing/) });
+    // A room that would take the run over FILL_MAX is left out.
+    const big = [{ name: 'Hall', outline: box(0, 0, 200, 200) }, { name: 'Hall 2', outline: box(0, 0, 200, 200) }, { name: 'Closet', outline: box(0, 0, 5, 5) }];
+    const cut = fillRooms(project(), L1, 'smoke-detector', big);
+    expect(cut.placed).toBeLessThanOrEqual(FILL_MAX);
+    expect(cut.left).toBe(1); // the second hall; the closet still fits
+    expect(cut.message).toBe(`2 rooms: ${cut.placed} smoke detectors placed — 1 room left out: ${FILL_MAX} devices a run · ⌘Z to undo`);
+    expect(elvLayer(project(), L1, MM, { system: 'fire-alarm', coverage: false, selected: null, preview: { type: 'smoke-detector', at: [3, 3], rooms: big.map((x) => x.outline) } }).symbols).toHaveLength(FILL_MAX);
+  });
+
   it('selects, moves, turns, deletes and copies devices', () => {
     let p = placeAt(project(), L1, 'camera', [2, 2]).next;
     expect(deviceNear(p, L1, 'cctv', [2.3, 2.2], 0.5)?.id).toBe('E1');
@@ -61,10 +78,23 @@ describe('ELV layer of the Floor plan page', () => {
     expect(moveTo(p, 'E1', [25, 2]).message).toBe('CCTV camera E1 moved outside every room outline · ⌘Z to undo');
     p = rotate(p, 'E1', -90).next;
     expect(p.elvDevices![0].rotationDeg).toBe(270);
-    const c = copyTo(p, L1, { building: 'B', level: 'L2' }, 'cctv', 'Level 2');
-    expect(c.message).toBe('1 device copied to Level 2 (1 in a room of the same name) · ⌘Z to undo');
-    expect(copyTo(p, L1, { building: 'B', level: 'L2' }, 'fire-alarm', 'Level 2').message).toBe('No fire alarm devices on this level to copy.');
     expect(remove(p, 'E1').next.elvDevices).toEqual([]);
+  });
+
+  it('counts the devices of each system and copies the systems chosen to another level, with Replace taking off what is there', () => {
+    const L2 = { building: 'B', level: 'L2' };
+    let p = placeAt(project(), L1, 'camera', [2, 2]).next;
+    p = placeAt(p, L1, 'smoke-detector', [4, 4]).next;
+    expect(systemCounts(p, L1).map((x) => [x.system, x.n])).toEqual([['fire-alarm', 1], ['cctv', 1], ['access-control', 0], ['ict', 0], ['public-address', 0]]);
+    const c = copySystems(p, L1, L2, ['cctv'], false);
+    expect(c).toMatchObject({ copied: 1, removed: 0 });
+    expect(systemCounts(c.next, L2).find((x) => x.system === 'cctv')!.n).toBe(1);
+    expect(systemCounts(c.next, L2).find((x) => x.system === 'fire-alarm')!.n).toBe(0);
+    const again = copySystems(c.next, L1, L2, ['cctv'], false);
+    expect(systemCounts(again.next, L2).find((x) => x.system === 'cctv')!.n).toBe(2);
+    const r = copySystems(again.next, L1, L2, ['cctv'], true);
+    expect(r).toMatchObject({ copied: 1, removed: 2 });
+    expect(systemCounts(r.next, L2).find((x) => x.system === 'cctv')!.n).toBe(1);
   });
 
   it('describes the coverage a device is placed by', () => {
@@ -72,5 +102,12 @@ describe('ELV layer of the Floor plan page', () => {
     expect(coverageNote('ceiling-speaker')).toBe(' · at most 6 m apart');
     expect(coverageNote('camera')).toBe(' · 100°: identify 3.2 m, recognise 6.4 m, observe 12.9 m');
     expect(coverageNote('data-outlet')).toBe('');
+  });
+  it('lists the rooms a system does not fully cover, only for systems with devices on the level', () => {
+    let p = placeAt(project(), L1, 'smoke-detector', [5, 5]).next;
+    expect(coverageGaps(p, L1)).toEqual([{ system: 'fire-alarm', label: expect.any(String), roomsNotCovered: 1 }]);
+    expect(coverageGaps(p, { building: 'B', level: 'L2' })).toEqual([]);
+    p = placeAt(p, L1, 'camera', [1, 1]).next;
+    expect(coverageGaps(p, L1).map((g) => g.system)).toEqual(['fire-alarm', 'cctv']);
   });
 });
