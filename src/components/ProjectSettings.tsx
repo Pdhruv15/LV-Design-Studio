@@ -89,6 +89,10 @@ export default function ProjectSettings({ project, onSave, onClose }: { project:
           Cable data by type: calculate each cable with the data of its own type (copper or aluminium, XLPE or PVC, single-core or multicore). Off: every cable is calculated as copper / XLPE / multicore.
         </label>
         <label className="row" style={{ gridColumn: '1 / -1' }}>
+          <input type="checkbox" checked={!!p.motorContribution} onChange={(e) => set('motorContribution', e.target.checked || undefined)} />
+          Fault levels: include the contribution of running motors (5 × rated current each, behind its cable; motors on a variable speed drive are left out). Off: neglected.
+        </label>
+        <label className="row" style={{ gridColumn: '1 / -1' }}>
           <input type="checkbox" checked={!!p.calc?.autoRun} onChange={(e) => set('calc', { ...p.calc, autoRun: e.target.checked })} />
           Auto-run calculations on every change (otherwise: Run / F5). Load schedule and form totals are always live.
         </label>

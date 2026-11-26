@@ -21,7 +21,7 @@ import { parallelOperation } from '../calc/parallelTx';
 import { existingChecks } from '../calc/existing';
 import { MATERIAL_LABEL, sizeRiser } from '../calc/busbar';
 import { motorStartVdLimit, vdRow, type VdRow } from '../calc/voltageDrop';
-import { incomerBasis } from '../calc/electrical';
+import { incomerBasis, MOTOR_LOCKED_ROTOR_MULTIPLE, MOTOR_RX } from '../calc/electrical';
 import { baseMvaOf, lvBase, puElements, puFaultAt } from '../calc/perUnit';
 import { faultPointResults } from '../calc/faultPoints';
 import { GENERATOR_XD_TRANSIENT_PCT, MOTOR_START_DIP_LIMIT_PCT } from '../calc/motor';
@@ -211,7 +211,8 @@ function baseSection(key: StudyReportKind, data: CalcData, scope: Scope): Sectio
         'Source impedance from the transformer rating and %Z (split by its X/R ratio); cable R at 20 °C and X per km; parallel runs divide the impedance.',
         ...((p.ties ?? []).some((t) => t.closed) ? ['Main boards joined by a closed bus coupler: the transformers run in parallel and their impedances combine (coupler impedance neglected), so the busbar fault is from all of them together.'] : []),
         'Breaking capacity check: the fault at the breaker terminals (supply busbar) must not exceed the breaker Icu. Fault at the cable end: 3-phase for 3/4-core circuits, line-to-neutral for 2-core.',
-        'Motor contribution and generation are neglected.',
+        p.motorContribution ? `Running motors add to the fault: each as ${MOTOR_LOCKED_ROTOR_MULTIPLE} × its rated current (R/X ${MOTOR_RX}) behind its own cable; motors on a variable speed drive are left out.` : 'Motor contribution is neglected.',
+        p.boards.some((b) => b.standby?.parallel) ? 'A generator marked as running in parallel with the supply adds to the fault at its board through its sub-transient reactance (X″d 15 %, X/R 10); other generation is neglected.' : 'Generation is neglected.',
         `Per-unit tables: base ${String(+baseMvaOf(p).toFixed(2))} MVA; at ${String(+p.voltageV.toFixed(1))} V the base current is ${base.ika.toFixed(2)} kA and the base impedance ${(base.zOhm * 1000).toFixed(3)} mΩ. Ik″ = c × base current ÷ Z (p.u.), the same current as the ohm method above. Peak current ip = κ × √2 × Ik″, with κ = 1.02 + 0.98 e^(−3R/X) (IEC 60909-0).`
       ],
       summary: [

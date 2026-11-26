@@ -1,4 +1,4 @@
-import { C_MAX, C_MV, cableImpedance, cableSizeText, DEFAULT_GRID_XR, DEFAULT_TRANSFORMER_XR, faultCurrentKA, gridFaultMva, gridImpedance, gridSourceOf, impedanceToBoard, runsOf, supplySourceLevel, transformerImpedance, type Impedance } from './electrical';
+import { C_MAX, C_MV, localSources, MOTOR_LOCKED_ROTOR_MULTIPLE, cableImpedance, cableSizeText, DEFAULT_GRID_XR, DEFAULT_TRANSFORMER_XR, faultCurrentKA, gridFaultMva, gridImpedance, gridSourceOf, impedanceToBoard, runsOf, supplySourceLevel, transformerImpedance, type Impedance } from './electrical';
 import { transformerPrimaryKv } from './transformerVoltage';
 import { feederFamily } from './cableFamily';
 import { lvSupplied, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type Project } from '../types';
@@ -62,6 +62,13 @@ export function puElements(project: Project, boardIds?: Set<string>): PuElement[
     }
   }
   for (const f of project.feeders) if (f.feedsBoardId && inScope(f.feedsBoardId)) out.push(cableRow(`Cable ${f.boardId} → ${f.feedsBoardId}`, f));
+  // Sources on the boards themselves: a generator in parallel with the supply, running motors (with their cables).
+  for (const b of project.boards) {
+    if (!inScope(b.id)) continue;
+    for (const s of localSources(project, b)) {
+      out.push({ element: s.label, data: `${n(s.kva)} kVA${s.kind === 'motor' ? `, ${MOTOR_LOCKED_ROTOR_MULTIPLE} × rated, with its cable` : ', X″d 15 %, X/R 10'}`, baseKv: lvKv, pu: toPu(s.z, base), how: s.kind === 'motor' ? 'base MVA ÷ (multiple × rated MVA), plus the cable' : 'X″d × base MVA ÷ rated MVA' });
+    }
+  }
   return out;
 }
 

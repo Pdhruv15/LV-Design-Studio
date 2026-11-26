@@ -18,10 +18,29 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.319', date: '2026-11-26',
+    version: '2.323', date: '2026-11-26',
     items: [
       { title: 'Transformer primary voltage and tap', text: 'On the board form of a main board with a transformer, Primary voltage and Tap now sit beside Vector group. Pick the primary voltage from the usual list (it shows on the SLD and schedules), and a tap of −5 to +5 %. A minus tap raises the secondary voltage, so the voltage drop at every board is lower by that amount (tap −2.5 % gives +2.56 %); a plus tap does the opposite. Nothing changes until a tap is set.' },
       { title: 'Voltage lists', text: 'The system voltage box in Project settings now offers more of the usual voltages, and the Vector group box suggests the usual groups. Typing another vector group still works.' }
+    ]
+  },
+  {
+    version: '2.322', date: '2026-11-26',
+    items: [
+      { title: 'Generator in parallel with the supply', text: 'A board with a standby generator has a new tick box, Runs in parallel with the supply. Tick it for a set that is synchronised with the supply: its fault current then adds to the supply\'s at that board, and reaches the boards above and below through the cables. Left unticked (a set behind a changeover) nothing changes.' },
+      { title: 'Motor contribution to fault levels', text: 'Project settings has a new switch, Fault levels: include the contribution of running motors. With it on, each motor adds 5 × its rated current, behind its own cable, to the fault level at its board and, through the cables, at the other boards. Motors on a variable speed drive are left out. It is off unless you turn it on, so existing projects keep their numbers. Both additions show as rows in the per-unit table of the short circuit report.' }
+    ]
+  },
+  {
+    version: '2.321', date: '2026-11-26',
+    items: [
+      { title: 'Load schedule: New ELCBs says what new circuits get', text: 'The New ELCBs list in the board bar now has RCBO on every circuit: circuits you add from then on get an RCBO, and the ones already on the DB keep their device. On a DB with one ELCB at the incomer the list shows ELCB-1 at the incomer and greys the sizes, because that ELCB already covers every way; RCBO on every circuit still works there, below it.' }
+    ]
+  },
+  {
+    version: '2.320', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: ELV devices in a colour of their own', text: 'ELV devices on the plan, their Coverage circles and the ELV items of the device palette and gallery are now rose: lighter on the dark themes, deeper on the light ones. Before, they took the accent colour, so on Graphite they looked like LV devices and on Blueprint like selected objects. Plots and PDFs stay black-and-white.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

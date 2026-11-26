@@ -2,6 +2,7 @@ import { boardOf, feedersOn, memoized, networkOf, withNetwork } from './network'
 import { recordedPQ } from '../model/existing';
 import { ambientCorrectionFactor, cables, getCable } from './cableTable';
 import { alphaOf, COPPER_ALPHA, feederFamily, type CableFamily } from './cableFamily';
+import { isMotor, runningKva, starterOf } from './motor';
 import { trayGrouping } from './cableTray';
 import { feederRatingBasis, type RatingBasis } from './installation';
 import { SOURCE_KINDS, lvSupplied, supplyFaultKa, supplyIncomerFeeder, supplyXr, type Board, type Feeder, type GridSource, type Project } from '../types';
@@ -467,7 +468,62 @@ export function impedanceToBoard(project: Project, boardId: string, seen = new S
   const fallback = PLACEHOLDER_SOURCE_Z;
   if (!board || seen.has(boardId)) return fallback;
   seen.add(boardId);
-  return memoized(project, `zUp:${boardId}`, () => impedanceToBoardOf(project, board, seen));
+  return memoized(project, `zUp:${boardId}`, () => {
+    const up = supplyPathZ(project, board, seen);
+    // Sources at and below the board (a generator in parallel, running motors) feed a fault on its busbar too.
+    const down = hasLocalSources(project) ? downSourcesZ(project, board, new Set()) : undefined;
+    return down ? parallelZ([up, down]) : up;
+  });
+}
+
+/** Locked-rotor current of a running motor as a multiple of its rated current, and its R/X, for its contribution
+ * to a fault: the usual values for a group of LV motors with their cables. */
+export const MOTOR_LOCKED_ROTOR_MULTIPLE = 5;
+export const MOTOR_RX = 0.42;
+
+/** A source of fault current on a board other than its supply: a standby set running in parallel with the supply,
+ * or a running motor (one row per motor, behind its own cable). `z` is its impedance up to the busbar. */
+export interface LocalSource { kind: 'generator' | 'motor'; label: string; kva: number; z: Impedance }
+export function localSources(project: Project, board: Board): LocalSource[] {
+  const v = project.voltageV, out: LocalSource[] = [];
+  const sb = board.standby;
+  if (sb?.parallel && positiveNum(sb.kva)) {
+    out.push({ kind: 'generator', label: `Generator at ${board.id}, in parallel`, kva: sb.kva, z: transformerImpedance(sb.kva, GENERATOR_XD_SUBTRANSIENT_PCT, v, GENERATOR_XR) });
+  }
+  if (project.motorContribution) {
+    for (const f of feedersOn(project, board.id)) {
+      // A drive feeds no fault current back; every other starter is bypassed or closed once the motor runs.
+      if (!isMotor(f) || starterOf(f) === 'VFD' || !(f.loadKw > 0)) continue;
+      const kva = runningKva(f);
+      const zm = (v * v) / (MOTOR_LOCKED_ROTOR_MULTIPLE * kva * 1000), x = zm / Math.sqrt(1 + MOTOR_RX * MOTOR_RX);
+      out.push({ kind: 'motor', label: `Motor ${f.id}`, kva, z: addZ({ r: x * MOTOR_RX, x }, cableImpedance(f.cableCsaMm2, f.lengthM, runsOf(f), feederFamily(project, f))) });
+    }
+  }
+  return out;
+}
+/** Whether any board has such a source (none: the fault levels are the supply path alone, as before). */
+const hasLocalSources = (project: Project): boolean =>
+  memoized(project, 'localSources', () => project.boards.some((b) => b.standby?.parallel && positiveNum(b.standby.kva)) || (!!project.motorContribution && project.feeders.some((f) => isMotor(f) && starterOf(f) !== 'VFD')));
+
+/** The supply path alone to a board's busbar (no source at or below the board itself). */
+const supplyPathZ = (project: Project, board: Board, seen: Set<string>): Impedance => memoized(project, `zSupply:${board.id}`, () => impedanceToBoardOf(project, board, seen));
+
+const boardCable = (project: Project, f: Feeder): Impedance => cableImpedance(f.cableCsaMm2, f.lengthM, runsOf(f), feederFamily(project, f));
+
+/** The sources at a board and on every board below it, as one impedance seen from its busbar: its own sources in
+ * parallel with each sub-board's (behind that board's incoming cable). Undefined when there are none. */
+function downSourcesZ(project: Project, board: Board, seen: Set<string>): Impedance | undefined {
+  if (seen.has(board.id)) return undefined;
+  seen.add(board.id);
+  return memoized(project, `zDown:${board.id}`, () => {
+    const branches = localSources(project, board).map((s) => s.z);
+    for (const f of feedersOn(project, board.id)) {
+      const child = f.feedsBoardId ? boardOf(project, f.feedsBoardId) : undefined;
+      const d = child && child.upstreamId === board.id ? downSourcesZ(project, child, seen) : undefined;
+      if (d) branches.push(addZ(boardCable(project, f), d));
+    }
+    return branches.length ? parallelZ(branches) : undefined;
+  });
 }
 
 /** True when the fault level at a board rests on the placeholder source: the first board at the top of its supply
@@ -526,7 +582,22 @@ function impedanceToBoardOf(project: Project, board: Board, seen: Set<string>): 
 
   const incomer = findIncomer(project, board);
   const incomerZ = incomer ? cableImpedance(incomer.cableCsaMm2, incomer.lengthM, runsOf(incomer), feederFamily(project, incomer)) : { r: 0, x: 0 };
-  return addZ(impedanceToBoard(project, board.upstreamId!, seen), incomerZ);
+  if (!hasLocalSources(project)) return addZ(impedanceToBoard(project, board.upstreamId!, seen), incomerZ);
+  // With sources on the boards: what feeds this board from above is the parent's own supply path in parallel
+  // with the parent's sources and its other sub-boards' — not this board's own branch, which is added once, below.
+  const parent = boardOf(project, board.upstreamId!);
+  if (!parent || seen.has(parent.id)) return addZ(PLACEHOLDER_SOURCE_Z, incomerZ);
+  seen.add(parent.id);
+  const above = memoized(project, `zAbove:${board.id}`, () => {
+    const branches = [supplyPathZ(project, parent, seen), ...localSources(project, parent).map((s) => s.z)];
+    for (const f of feedersOn(project, parent.id)) {
+      const sib = f.feedsBoardId && f.feedsBoardId !== board.id ? boardOf(project, f.feedsBoardId) : undefined;
+      const d = sib && sib.upstreamId === parent.id ? downSourcesZ(project, sib, new Set([board.id])) : undefined;
+      if (d) branches.push(addZ(boardCable(project, f), d));
+    }
+    return branches.length > 1 ? parallelZ(branches) : branches[0];
+  });
+  return addZ(above, incomerZ);
 }
 
 /** Maximum voltage factor for LV short-circuit currents, IEC 60909-0
