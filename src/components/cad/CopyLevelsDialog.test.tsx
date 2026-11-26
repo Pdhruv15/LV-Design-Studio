@@ -96,6 +96,18 @@ describe('Copy to levels window', () => {
     expect(copyButton().title).toBe('Nothing to copy');
   });
 
+  it('shows the circuits table with only switches ticked, and the switch names the circuit on the board chosen', () => {
+    let p0 = make();
+    p0 = placeAccessory(p0, L1, 'switch', 6, 6, { feederId: 'DB-1-1' }).project;
+    const props = render(p0);
+    tick('Lights, sockets');
+    tick('Level 2');
+    expect(q('.cad-cl-map tbody td').textContent).toBe('DB-1 · 1 device');
+    act(() => copyButton().click());
+    const next = (props.onCopy.mock.calls[0] as [Project, string])[0];
+    expect(next.cadAccessories!.filter((a) => a.levelId === 'L2').map((a) => a.feederId)).toEqual([undefined, 'DB-2-1']);
+  });
+
   it('closes with Esc', () => {
     const props = render();
     act(() => { q('[role=dialog]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });

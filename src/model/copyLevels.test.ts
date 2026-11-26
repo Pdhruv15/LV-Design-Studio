@@ -31,8 +31,10 @@ function level1(): Project {
 describe('Copy to levels', () => {
   it('lists the boards that carry the level, and the boards copies may go on', () => {
     const p = level1();
-    expect(boardsToMap(p, F1)).toEqual([{ boardId: 'DB-1A', n: 2 }, { boardId: 'DB-1B', n: 1 }]);
-    expect(boardsToMap(p, F2)).toEqual([]);
+    expect(boardsToMap(p, F1, { points: true, acc: false })).toEqual([{ boardId: 'DB-1A', n: 2 }, { boardId: 'DB-1B', n: 1 }]);
+    expect(boardsToMap(p, F1, { points: true, acc: true })).toEqual([{ boardId: 'DB-1A', n: 3 }, { boardId: 'DB-1B', n: 1 }]); // the switch on DB-1A way 1
+    expect(boardsToMap(p, F1, { points: false, acc: true })).toEqual([{ boardId: 'DB-1A', n: 1 }]);
+    expect(boardsToMap(p, F2, { points: true, acc: true })).toEqual([]);
     const c = boardChoices(p, F2);
     expect(c.here.map((b) => b.id)).toEqual(['DB-2A', 'DB-2B', 'DB-2C']); // a typical level offers the boards of all its floors
     expect(c.others.map((b) => b.id)).toEqual(['DB-1A', 'DB-1B', 'DB-3A']);

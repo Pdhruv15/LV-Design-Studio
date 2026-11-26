@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { CadDialog } from './CadDialogs';
 import { copyLvToLevels, boardChoices, boardsToMap, defaultBoard, type CopyTarget } from '../../model/copyLevels';
 import { plansOf } from '../../model/cadPlans';
 import { floorLabel, type Floor } from '../../model/levels';
@@ -16,8 +17,6 @@ const onLevel = (x: { buildingId: string; levelId: string }, f: Floor) => x.buil
 export function CopyLevelsDialog({ project, from, file, onCopy, onClose }: {
   project: Project; from: Floor; file?: string; onCopy: (next: Project, message: string) => void; onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { ref.current?.focus(); }, []);
   const fromLevel = { building: from.ref.building, level: from.ref.level };
   const nPoints = (project.lvPoints ?? []).filter((d) => onLevel(d, from)).length;
   const nAcc = (project.cadAccessories ?? []).filter((d) => onLevel(d, from)).length;
@@ -31,12 +30,12 @@ export function CopyLevelsDialog({ project, from, file, onCopy, onClose }: {
   const [replace, setReplace] = useState(false);
 
   const ticked = others.filter((x) => levels.includes(x.floor.key));
-  const map = useMemo(() => boardsToMap(project, from.ref), [project, from.ref]);
+  const map = useMemo(() => boardsToMap(project, from.ref, { points: pts, acc }), [project, from.ref, pts, acc]);
   const choice = (to: Floor, boardId: string): string | undefined => {
     const k = `${to.key}|${boardId}`;
     return k in picked ? picked[k] || undefined : defaultBoard(project, from.ref, boardId, to.ref);
   };
-  const showMap = pts && ticked.length > 0 && map.length > 0;
+  const showMap = (pts || acc) && ticked.length > 0 && map.length > 0;
 
   const run = useMemo(() => {
     const targets: CopyTarget[] = ticked.map((x) => ({ level: x.floor.ref, label: x.label, boards: Object.fromEntries(showMap ? map.map((m) => [m.boardId, choice(x.floor, m.boardId)]) : []) }));
@@ -70,11 +69,8 @@ export function CopyLevelsDialog({ project, from, file, onCopy, onClose }: {
   };
 
   return (
-    <div ref={ref} tabIndex={-1} className="cad-dlg cad-cl" role="dialog" aria-label="Copy to levels" style={{ left: 60, top: 40 }}
-      onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } }}
-      onMouseDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
-      <div className="cad-dlg-t"><b>Copy to levels</b><i className="sp" /><button type="button" aria-label="Close" onClick={onClose}>×</button></div>
-      <div className="cad-dlg-rows">
+    <CadDialog id="copy-levels" title="Copy to levels" cls="cad-cl" okLabel="Copy" okDisabled={!!why} okTitle={why} onOk={copy} onClose={onClose}>
+      <div className="cad-cl-body">
         <p className="cad-cl-from">From {floorLabel(project.building, from)}{file ? ` · ${file}` : ''}</p>
         <b className="cad-cl-h">What</b>
         <div className="cad-cl-what">
@@ -121,12 +117,8 @@ export function CopyLevelsDialog({ project, from, file, onCopy, onClose }: {
         {run.notes.length > 0 && <ul className="cad-cl-notes" aria-label="Notes">{run.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
         {already.length > 0 && <p className="cad-cl-muted">Already there: {already.map((x) => `${x.n} on ${x.label}`).join(', ')}. They stay unless Replace is ticked.</p>}
         <label className="cad-cl-replace"><input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} /> Replace the devices of these kinds already on those levels</label>
+        <p className="cad-cl-sum">{run.rows.map((r) => `${r.copied} device${s(r.copied)} to ${r.label}`).join(' · ')}</p>
       </div>
-      <div className="cad-dlg-ft cad-cl-ft">
-        <span className="cad-cl-sum">{run.rows.map((r) => `${r.copied} device${s(r.copied)} to ${r.label}`).join(' · ')}</span>
-        <button type="button" className="chip primary" disabled={!!why} title={why} onClick={copy}>Copy</button>
-        <button type="button" className="chip" onClick={onClose}>Cancel</button>
-      </div>
-    </div>
+    </CadDialog>
   );
 }

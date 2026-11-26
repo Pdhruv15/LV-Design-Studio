@@ -14,14 +14,15 @@ const onLevel = (x: { buildingId: string; levelId: string }, l: LevelRef) => x.b
 const boardOnLevel = (b: Board, l: LevelRef) => b.level?.building === l.building && b.level?.level === l.level;
 const SOCKETS: PointType[] = ['s13', 's13t', 's15', 'shaver'];
 
-/** The boards whose circuits carry this level's points, with how many, in the order of the project's boards. */
-export function boardsToMap(p: Project, from: LevelRef): { boardId: string; n: number }[] {
+/** The boards whose circuits carry what is ticked on this level (its points, and its switches that name a circuit), with how many, in the order of the project's boards. */
+export function boardsToMap(p: Project, from: LevelRef, what: { points: boolean; acc: boolean }): { boardId: string; n: number }[] {
   const count = new Map<string, number>();
-  for (const d of p.lvPoints ?? []) {
-    if (!onLevel(d, from)) continue;
-    const f = p.feeders.find((x) => x.id === d.feederId);
+  const add = (feederId: string | undefined) => {
+    const f = p.feeders.find((x) => x.id === feederId);
     if (f) count.set(f.boardId, (count.get(f.boardId) ?? 0) + 1);
-  }
+  };
+  if (what.points) for (const d of p.lvPoints ?? []) if (onLevel(d, from)) add(d.feederId);
+  if (what.acc) for (const d of p.cadAccessories ?? []) if (onLevel(d, from)) add(d.feederId);
   const ids = p.boards.map((b) => b.id);
   return [...count.keys()].sort((a, b) => ids.indexOf(a) - ids.indexOf(b)).map((boardId) => ({ boardId, n: count.get(boardId)! }));
 }
