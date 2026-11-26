@@ -6,7 +6,7 @@ const BEFORE: Record<string, string> = {
   OPEN: '!open', CLOSE: '!close', CLOSEALL: '!close', FIT: '!fit', ZE: '!fit', 'Z E': '!fit', 'ZOOM E': '!fit', 'ZOOM EXTENTS': '!fit',
   Z: 'zoom', ZOOM: 'zoom', 'Z W': 'zoomwin', 'ZOOM W': 'zoomwin', 'ZOOM WINDOW': 'zoomwin', 'Z P': '!zoomPrev', 'ZOOM P': '!zoomPrev', 'ZOOM PREVIOUS': '!zoomPrev',
   'Z S': 'zoomscale', 'ZOOM S': 'zoomscale', 'ZOOM SCALE': 'zoomscale', QSELECT: '!qselect', QS: '!qselect', SELECTSIMILAR: 'selsim',
-  DRA: 'dimrad', DIMRADIUS: 'dimrad', DDI: 'dimdia', DIMDIAMETER: 'dimdia', DAN: 'dimang', DIMANGULAR: 'dimang',
+  DRA: 'dimrad', DIMRADIUS: 'dimrad', DDI: 'dimdia', DIMDIAMETER: 'dimdia', DAN: 'dimang', DIMANGULAR: 'dimang', DAR: 'dimarc', DIMARC: 'dimarc', DJO: 'dimjog', DIMJOGGED: 'dimjog', JOG: 'dimjog', DOR: 'dimord', DIMORDINATE: 'dimord',
   DI: 'dist', DIST: 'dist', DISTANCE: 'dist', AREA: 'area', AA: 'area', RA: 'room', ROOM: 'room', ROOMAREA: 'room',
   ROOMS: '!addRooms', ADDROOMS: '!addRooms', TR: 'trim', TRACE: 'trace', PN: 'name', NAME: 'name', LI: 'none', LIST: 'none',
   DEV: 'dev', DEVICE: 'dev', INSERT: '!blocksPalette', I: '!blocksPalette', '-INSERT': 'insert', ATT: '!attDef', ATTDEF: '!attDef', ATE: 'attedit', ATTEDIT: 'attedit', EATTEDIT: 'attedit', ATTEXT: '!attExport', M: 'move', MOVE: 'move', CO: 'copy', CP: 'copy', COPY: 'copy',
@@ -37,7 +37,7 @@ const BEFORE: Record<string, string> = {
 const ADDED: Record<string, string> = {
   // Dimensions panel (v2.273): DIM takes its kind from what is clicked; Aligned has its own tool; DIMLAYER.
   CL: '!copyLevels', COPYLEVELS: '!copyLevels',
-  DIMALIGNED: 'dimal', DAL: 'dimal', DIMLAYER: '!dimLayer', QDIM: 'qdim', DIMSPACE: 'dimspace',
+  DIMALIGNED: 'dimal', DAL: 'dimal', DIMLAYER: '!dimLayer', QDIM: 'qdim', DIMSPACE: 'dimspace', DIMBREAK: 'dimbreak', DIMTEDIT: 'dimtedit', DIMTED: 'dimtedit',
   ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
   // Right-click menus, phase 1: the tools behind the blank-canvas, command and selection menus.
   P: 'pan', PAN: 'pan', UNDO: '!undo', REDO: '!redo', SELECTALL: '!selectAll', FIND: '!find', FINDREPLACE: '!find', CUTCLIP: '!cutClip', BE: '!bedit', BEDIT: '!bedit', BSAVE: '!bsave', BCLOSE: '!bclose', REFEDIT: '!refedit', REFCLOSE: '!refclose', XCOMPARE: '!xcompare', DETECTROOMS: '!detectRooms', ROOMSW: '!detectRooms', COUNT: '!count', ADDSELECTED: '!addSelected', QM: '!quickMeasure', QUICKMEASURE: '!quickMeasure',
