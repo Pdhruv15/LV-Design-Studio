@@ -121,7 +121,7 @@ import { exportDrawingSet } from '../docs/sheetRender';
 import { pickedRoom, putRooms, renameRoom, setRoomType } from '../../model/floorPlanActions';
 import { floorLabel, floorList, type Floor } from '../../model/levels';
 import { circuitRoom, nextWithRoom, pointMax } from '../../model/circuitRoom';
-import { planRoomLights, ROOM_SCOPE_MAX, roomsInScope, scopeCounts, type RoomScope } from '../../model/roomScope';
+import { planRoomLights, planRoomSets, ROOM_SCOPE_MAX, roomsInScope, scopeCounts, type RoomScope } from '../../model/roomScope';
 import RoomScopeButtons from './RoomScopeButtons';
 import CircuitPicker from './CircuitPicker';
 import type { CadLayerMap, CadLayerRole, Project } from '../../types';
@@ -961,6 +961,20 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const roomTemplateOf = tool === 'roomtemplate' ? buildingInfoOf(project).rooms.find((r) => r.id === roomTemplateRoom) : undefined;
   const lvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'elv' ? proposeLvRoomTemplate(project, roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
   const elvRoomTemplate = useMemo(() => (roomTemplateOf && roomTemplateScope !== 'lv' ? proposeElvRoomTemplate(roomTemplateOf, roomTemplateKind) : undefined), [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
+  // All rooms like this for Room devices: each room's own proposal, shared out over the circuits.
+  const rdtSets = useMemo(() => {
+    if (!roomTemplateOf || roomScope === 'room') return undefined;
+    const lvOn = roomTemplateScope !== 'elv', elvOn = roomTemplateScope !== 'lv';
+    const rooms = roomsInScope(project, roomTemplateOf, roomScope).rooms;
+    return rooms.map((room) => {
+      try { return { room, lv: lvOn ? proposeLvRoomTemplate(project, room, roomTemplateKind) : undefined, elv: elvOn ? proposeElvRoomTemplate(room, roomTemplateKind) : undefined }; } catch { return { room }; }
+    });
+  }, [project, roomTemplateOf?.id, roomTemplateKind, roomTemplateScope, roomScope]); // eslint-disable-line react-hooks/exhaustive-deps -- follows the selected room
+  const rdtPlan = useMemo(() => (rdtSets ? planRoomSets(circuits, roomTemplateLighting, rdtSets.map((x) => x.room), (room) => {
+    const x = rdtSets.find((y) => y.room.id === room.id);
+    if (!x || (roomTemplateScope !== 'elv' && !x.lv) || (roomTemplateScope !== 'lv' && !x.elv)) return undefined;
+    return { lights: x.lv?.lights ?? [], sockets: x.lv?.sockets.length ?? 0, elv: x.elv ? x.elv.dataOutlets.length + x.elv.accessPoints.length + x.elv.smokeDetectors.length : 0, limited: !!x.lv?.limited || !!x.elv?.limited };
+  }, roomTemplateScope !== 'elv') : undefined), [rdtSets, circuits, roomTemplateLighting, roomTemplateScope]);
   const containmentCheck = useMemo(() => tool === 'containment'
     ? checkLvContainment(project, sketch)
     : { segments: [], truncated: false, checkedRoutes: 0, issues: 0 }, [tool, project, sketch]);
@@ -981,14 +995,18 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const roomTemplateGhosts: CanvasDevice[] = tool !== 'roomtemplate' ? [] : (() => {
     const out: CanvasDevice[] = [];
     const add = (at: Pt[], key: string, symbol: { shape: string; text: string; plan?: string; tag?: string }, elv = false) => at.forEach(([x, y], i) => out.push({ key: `${key}${i}`, x: x / units.factor, y: y / units.factor, r: rUnits, shape: symbol.shape, text: symbol.text, ...(symbol.plan ? { plan: symbol.plan, tag: symbol.tag } : {}), label: '', elv, ghost: true }));
-    if (lvRoomTemplate) {
-      add(lvRoomTemplate.lights, 'rdtl', { shape: 'cross', text: '' });
-      add(lvRoomTemplate.sockets, 'rdts', LV_PALETTE.find((x) => x.id === 's13t')!.symbol);
-    }
-    if (elvRoomTemplate) {
-      add(elvRoomTemplate.dataOutlets, 'rdtd', ELV_PALETTE.find((x) => x.id === 'data-outlet')!.symbol, true);
-      add(elvRoomTemplate.accessPoints, 'rdta', ELV_PALETTE.find((x) => x.id === 'access-point')!.symbol, true);
-      add(elvRoomTemplate.smokeDetectors, 'rdtf', ELV_PALETTE.find((x) => x.id === 'smoke-detector')!.symbol, true);
+    const kept = rdtPlan && rdtSets ? rdtSets.filter((x) => rdtPlan.rows.find((r) => r.room.id === x.room.id && !r.why)) : undefined;
+    const sets = kept ? kept.map((x) => ({ key: x.room.id, lv: 'lv' in x ? x.lv : undefined, elv: 'elv' in x ? x.elv : undefined })) : [{ key: '', lv: lvRoomTemplate, elv: elvRoomTemplate }];
+    for (const { key, lv, elv } of sets) {
+      if (lv) {
+        add(lv.lights, `rdtl${key}`, { shape: 'cross', text: '' });
+        add(lv.sockets, `rdts${key}`, LV_PALETTE.find((x) => x.id === 's13t')!.symbol);
+      }
+      if (elv) {
+        add(elv.dataOutlets, `rdtd${key}`, ELV_PALETTE.find((x) => x.id === 'data-outlet')!.symbol, true);
+        add(elv.accessPoints, `rdta${key}`, ELV_PALETTE.find((x) => x.id === 'access-point')!.symbol, true);
+        add(elv.smokeDetectors, `rdtf${key}`, ELV_PALETTE.find((x) => x.id === 'smoke-detector')!.symbol, true);
+      }
     }
     return out;
   })();
@@ -2035,6 +2053,22 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   /** Room devices: approves the bounded LV and/or ELV preview in one undoable project change. */
   function approveRoomTemplate() {
     if (!floor || !roomTemplateOf) return;
+    if (rdtPlan && rdtSets) {
+      const got = rdtPlan.rows.filter((r) => !r.why);
+      if (!got.length) { cad.say(`RDT  No room could be done: ${rdtPlan.rows[0]?.why ?? 'no room'}`); return; }
+      try {
+        let next = project, removed = 0;
+        for (const row of got) {
+          const x = rdtSets.find((y) => y.room.id === row.room.id)!;
+          if (x.lv) { const r = approveLvRoomTemplate(next, floor.ref, x.lv, row.feederId ?? roomTemplateLighting, roomTemplatePower, roomTemplateReplace); next = r.project; removed += r.removed; }
+          if (x.elv) { const r = approveElvRoomTemplate(next, row.room, x.elv, roomTemplateReplace); next = r.project; removed += r.removed; }
+        }
+        const out = rdtPlan.rows.length - got.length;
+        change(next, `RDT  ${rdtPlan.devices} device${rdtPlan.devices === 1 ? '' : 's'} approved in ${got.length} room${got.length === 1 ? '' : 's'}${out ? ` — ${out} room${out === 1 ? '' : 's'} left out` : ''}${removed ? ` · ${removed} replaced` : ''} · ⌘Z to undo`);
+        setRoomTemplateRoom(null);
+      } catch (e) { cad.say(`RDT  ${e instanceof Error ? e.message : String(e)}`); }
+      return;
+    }
     try {
       let next = project, placed = 0, removed = 0, lvPlaced = 0, elvPlaced = 0;
       if (roomTemplateScope !== 'elv') {
@@ -5461,7 +5495,8 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
             <RoomDeviceTemplatePanel project={project} room={roomTemplateOf} kind={roomTemplateKind} onKind={setRoomTemplateKind} scope={roomTemplateScope} onScope={setRoomTemplateScope}
               lv={lvRoomTemplate} elv={elvRoomTemplate} circuits={circuits} lightingFeederId={roomTemplateLighting} onLightingFeeder={setRoomTemplateLighting}
               powerFeederId={roomTemplatePower} onPowerFeeder={setRoomTemplatePower} replace={roomTemplateReplace} onReplace={setRoomTemplateReplace}
-              onApprove={approveRoomTemplate} onCancel={() => { setRoomTemplateRoom(null); cad.say(`Command: ${PROMPT.roomtemplate}`); }} />
+              onApprove={approveRoomTemplate} roomScope={roomScope} onRoomScope={setRoomScope} counts={roomTemplateOf ? scopeCounts(project, roomTemplateOf) : undefined} plan={rdtPlan} levelName={floor ? floorLabel(project.building, floor) : undefined} typeLabel={roomTemplateOf ? roomTypesOf(buildingInfoOf(project)).find((t) => t.id === roomTemplateOf.type)?.label : undefined}
+              onCancel={() => { setRoomTemplateRoom(null); cad.say(`Command: ${PROMPT.roomtemplate}`); }} />
           )}
           {tool === 'arl' && view && (
             <ArrayPanel project={project} settings={arlSet} onSettings={setArlSet} palette={palette} circuits={circuits} feederId={cad.feederId} onFeeder={cad.setFeederId}

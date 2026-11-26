@@ -1119,6 +1119,33 @@ describe('CAD view', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toContain('replaced');
   });
 
+  it('Room devices: Whole level shows Approve N devices in M rooms, and one approval places devices in several rooms in one change', async () => {
+    act(() => root.render(<Host />));
+    await flush();
+    act(() => state.actions.current.addFound());
+    const rooms = buildingInfoOf(project).rooms.filter((r) => (r.outline?.length ?? 0) >= 3);
+    const majlis = rooms.find((r) => /majlis/i.test(r.name))!;
+    const [cx, cy] = majlis.outline!.reduce(([x, y], q) => [x + q[0] / majlis.outline!.length, y + q[1] / majlis.outline!.length], [0, 0]);
+    await command('RDT');
+    await clickAt(cx / 0.001, cy / 0.001);
+    const choose = async (label: string, value: string) => {
+      const select = document.querySelector(`select[aria-label="${label}"]`) as HTMLSelectElement;
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, value); select.dispatchEvent(new Event('change', { bubbles: true })); });
+    };
+    await choose('Template lighting circuit', 'DB-GF1-Y1');
+    await choose('Template power circuit', 'DB-GF1-B6');
+    await act(async () => { ([...document.querySelectorAll<HTMLButtonElement>('.cad-scope [role=radio]')].find((b) => b.textContent!.startsWith('Whole level')))!.click(); });
+    const approve = () => [...document.querySelectorAll<HTMLButtonElement>('.cad-devbtns .chip.primary')].find((b) => b.textContent?.startsWith('Approve'))!;
+    const m = /^Approve (\d+) devices? in (\d+) rooms?$/.exec(approve().textContent!)!;
+    expect(m).toBeTruthy();
+    expect(Number(m[2])).toBeGreaterThan(1);
+    const calls = onChange.mock.calls.length;
+    await act(async () => { approve().click(); });
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(new Set((project.lvPoints ?? []).filter((d) => d.type === 'ltg').map((d) => d.x)).size).toBeGreaterThan(1);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(new RegExp(`^RDT  ${m[1]} devices? approved in ${m[2]} rooms?`));
+  });
+
   it('lays out emergency lighting (EM): draws an escape route, an open area and a point of emphasis, then places them', async () => {
     act(() => root.render(<Host />));
     await flush();

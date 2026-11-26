@@ -61,3 +61,44 @@ export function planRoomLights(circuits: Feeder[], startId: string, rooms: Build
   const got = rows.filter((r) => r.feederId);
   return { rows, lights: got.reduce((s, r) => s + r.points.length, 0), rooms: got.length, circuits: used };
 }
+
+/** The most devices one Room devices run places over several rooms. */
+export const ROOM_SET_MAX = 400;
+export interface RoomSetRow { room: BuildingRoom; lights: number; sockets: number; elv: number; /** The lighting circuit of its lights. */ feederId?: string; /** Why it is left out. */ why?: string }
+export interface RoomSetPlan { rows: RoomSetRow[]; rooms: number; lights: number; sockets: number; elv: number; devices: number; circuits: { feeder: Feeder; added: number; after: number }[] }
+
+/** Room devices over several rooms: each room's lights on one lighting circuit (as planRoomLights), its sockets on the
+ * power circuit; a room whose preview reached its own limit, that fits on no lighting circuit, or that would take the
+ * run over ROOM_SET_MAX is left out, with the reason. */
+export function planRoomSets(circuits: Feeder[], lightingId: string, rooms: BuildingRoom[], of: (room: BuildingRoom) => { lights: [number, number][]; sockets: number; elv: number; limited: boolean } | undefined, lv: boolean): RoomSetPlan {
+  const got = new Map(rooms.map((r) => [r.id, of(r)]));
+  const rows: RoomSetRow[] = rooms.map((room) => {
+    const o = got.get(room.id);
+    const row: RoomSetRow = { room, lights: lv ? o?.lights.length ?? 0 : 0, sockets: lv ? o?.sockets ?? 0 : 0, elv: o?.elv ?? 0 };
+    if (!o) row.why = 'its devices cannot be worked out';
+    else if (o.limited) row.why = 'over the limit of one room: divide it or place it by hand';
+    return row;
+  });
+  // The lights of the rooms still kept on the lighting circuits; a room with no lights needs no circuit.
+  let used: RoomSetPlan['circuits'] = [];
+  const share = () => {
+    used = [];
+    if (!lv) return;
+    const lit = rows.filter((r) => !r.why && r.lights > 0);
+    for (const r of lit) delete r.feederId;
+    const plan = planRoomLights(circuits, lightingId, lit.map((r) => r.room), (room) => ({ points: got.get(room.id)!.lights, lux: 0 }));
+    plan.rows.forEach((p, i) => { lit[i].feederId = p.feederId; lit[i].why = p.why; });
+    used = plan.circuits;
+  };
+  share();
+  let total = 0, cut = false;
+  for (const r of rows) {
+    if (r.why) continue;
+    const n = r.lights + r.sockets + r.elv;
+    if (total + n > ROOM_SET_MAX) { r.why = `${ROOM_SET_MAX} devices a run`; delete r.feederId; cut = true; } else total += n;
+  }
+  if (cut) share();
+  const kept = rows.filter((r) => !r.why);
+  const sum = (k: 'lights' | 'sockets' | 'elv') => kept.reduce((s, r) => s + r[k], 0);
+  return { rows, rooms: kept.length, lights: sum('lights'), sockets: sum('sockets'), elv: sum('elv'), devices: sum('lights') + sum('sockets') + sum('elv'), circuits: used };
+}
