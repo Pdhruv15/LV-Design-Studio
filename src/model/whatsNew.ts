@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.312', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: Copy to levels', text: 'Level → Copy to levels (CL) now opens a window: tick what to copy (lights, sockets and equipment; switches and boxes; each ELV system) and the levels to copy to. For each board of this level choose the board on the other level: a light or socket goes on the same way of that board and counts on that circuit, as placing it by hand does. Where the way is missing, its devices are listed and left out. Replace first takes off what those levels already hold. One undo step for all levels. A typical level is one plan: the boards of its other floors are not changed.', action: 'cad', actionLabel: 'Open Design CAD' }
+    ]
+  },
+  {
     version: '2.310', date: '2026-11-25',
     items: [
       { title: 'Design CAD: Socket room', text: 'Devices → Socket room (SOCK): point at a room to see sockets along its walls at the spacing you set, each turned to face into the room. Click a wall to leave it out, click a socket to take it off, then Place. The panel shows the circuits used before placing: 13 A sockets go on to the next circuit with room at the most the Rules sheet allows. Also on a room\'s right-click list.', action: 'cad', actionLabel: 'Open Design CAD' }

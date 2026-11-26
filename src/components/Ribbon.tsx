@@ -209,14 +209,14 @@ export interface RibbonActions {
     panelOrder?: string[]; onPanelOrder?: (order: string[]) => void;
     file: { plans: Tool['menu']; plansSub?: string; level: string; levelTitle: string; levels: Tool['menu']; unit: string; unitTitle: string; units: Tool['menu'] };
     onRoles: () => void; rolesOn: boolean; onAddFound: () => void; onSchedules: () => void; onPlaceBoard: () => void; placingBoard: boolean;
-    onCoverage: () => void; coverageOn: boolean; copyLevels: Tool['menu'];
+    onCoverage: () => void; coverageOn: boolean; onCopyLevels: () => void;
     /** Add device: the device it places, the devices placed last (newest first) and choosing one in the gallery (which starts DEV). */
     device?: string; recentDevices?: string[]; onDevice?: (id: string) => void;
     /** Fill room's own ELV device, and choosing it on the arrow (which starts FILL). */
     fillDevice?: ElvDeviceType; onFill?: (type: ElvDeviceType) => void;
     /** Coverage's own system, and showing one from the arrow (null: off). */
     coverageSystem?: ElvSystem; onCoverageOf?: (system: ElvSystem | null) => void;
-    /** Why Copy to level is greyed while a drawing is open. */
+    /** Why Copy to levels is greyed while a drawing is open. */
     copyWhy?: string;
     onWireAll: () => void; onTags: () => void; tagsOn: boolean;
   };
@@ -1103,7 +1103,7 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
       [
         sm({ ...cadTool('check', 'Check level', ClipboardCheck, 'One list for this level: rooms short of lights or with no socket, circuits over the Rules sheet, devices outside a room, ELV coverage gaps and boards not on the plan (CHK)'), why: NO_DRAWING }),
         sm({ label: 'Coverage', icon: CircleDashed, cmd: 'COV', title: 'Show what the devices of the system chosen on the arrow cover, and what is not covered (COV)', onClick: () => a.cad?.onCoverage(), active: a.cad?.coverageOn, disabled: !a.cad?.hasDrawing, why: NO_DRAWING, menu: coverageMenu }),
-        sm({ label: 'Copy to level', icon: Copy, title: "Copy this level's devices of the chosen ELV device's system to another level, at the same plan positions", onClick: () => {}, menuOnly: true, disabled: !a.cad?.hasDrawing || !a.cad.copyLevels?.length, why: a.cad?.hasDrawing ? a.cad.copyWhy : NO_DRAWING, menu: a.cad?.copyLevels })
+        sm({ label: 'Copy to levels', icon: Copy, cmd: 'CL', title: "Copy this level's lights, sockets, switches and ELV devices to other levels: same plan positions, same ways of the boards you choose (CL)", onClick: () => a.cad?.onCopyLevels(), disabled: !a.cad?.hasDrawing || !!a.cad.copyWhy, why: a.cad?.hasDrawing ? a.cad.copyWhy : NO_DRAWING })
       ],
       [
         sm(cadTool('none', 'Select', BoxSelect, 'Select devices (SEL): click one, Shift-click to add or remove, or drag a window — left to right picks what is inside, right to left also what it crosses; a toolbar beside them has the edits that suit them', 'SEL')),

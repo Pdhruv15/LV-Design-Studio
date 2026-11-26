@@ -965,8 +965,16 @@ describe('CAD view', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toMatch(/smoke detectors? placed · ⌘Z to undo$/i);
     act(() => state.setCoverage(true));
     expect(document.body.textContent).toMatch(/not fully covered/);
-    act(() => state.actions.current.copyTo('V/FF/0'));
+    act(() => state.actions.current.copyLevels());
+    const dlg = () => document.querySelector('[role="dialog"][aria-label="Copy to levels"]') as HTMLElement;
+    expect(dlg()).not.toBeNull();
+    const calls = onChange.mock.calls.length;
+    act(() => [...dlg().querySelectorAll<HTMLInputElement>('.cad-cl-levels input')].find((i) => i.parentElement?.textContent?.includes('First'))!.click());
+    act(() => [...dlg().querySelectorAll('button')].find((b) => b.textContent === 'Copy')!.click());
+    expect(onChange.mock.calls.length).toBe(calls + 1);
+    expect(onChange.mock.calls[calls][1]).toMatch(/^CL {2}\d+ devices? copied to 1 level · ⌘Z to undo$/);
     expect((project.elvDevices ?? []).filter((d) => d.levelId === 'FF')).toHaveLength(onGf().length);
+    expect(dlg()).toBeNull();
   });
 
   it("fills with Fill room's own device whatever Add device has chosen; the palette sets it while FILL runs, and Coverage keeps its own system", async () => {

@@ -36,6 +36,7 @@ const BEFORE: Record<string, string> = {
 // Added since: the text and dimension styles (STYLE, DIMSTYLE).
 const ADDED: Record<string, string> = {
   // Dimensions panel (v2.273): DIM takes its kind from what is clicked; Aligned has its own tool; DIMLAYER.
+  CL: '!copyLevels', COPYLEVELS: '!copyLevels',
   DIMALIGNED: 'dimal', DAL: 'dimal', DIMLAYER: '!dimLayer', QDIM: 'qdim', DIMSPACE: 'dimspace',
   ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
   // Right-click menus, phase 1: the tools behind the blank-canvas, command and selection menus.

@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Devices tools (2026-11-23)
 
-Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275), 2 (v2.291), 3 (v2.307), 4 (v2.308 Fill room and Light room, v2.309 Room devices) and 5 (v2.310); step 6 is next.
+Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275), 2 (v2.291), 3 (v2.307), 4 (v2.308 Fill room and Light room, v2.309 Room devices) 5 (v2.310) and 6 (v2.312); all six steps are built.
 
 Mockup: `docs/mockups/cad-devices-panel-mockup.html` (image: `cad-devices-panel-mockup.png`).
 
@@ -69,7 +69,7 @@ As they were asked:
 - **B. Names.** "Socket room", "Check level", "Copy to levels" and the panel name "Level" as drawn (recommended), or other words?
 - **C. New tools.** All six in the order of the build steps (recommended). Any to drop, or to move up?
 - **D. A circuit at its maximum.** Warn and offer the next circuit with room (recommended; it matches the warn-only rule built for moving devices, still open in the Device edit tools note), or stop placing at the maximum?
-- **E. Typical levels.** A typical level has one plan and one set of devices for all its floors, while each floor has its own boards. Should Copy to levels also put the same points on the boards of the other floors of a typical level? Recommended: decide with step 6, after a look at the load schedule side.
+- **E. Typical levels.** A typical level has one plan and one set of devices for all its floors, while each floor has its own boards. Should Copy to levels also put the same points on the boards of the other floors of a typical level? Recommended: decide with step 6, after a look at the load schedule side. **Decided with step 6 (v2.312): no.** Copy to levels works plan to plan and a typical level is one plan: the board chosen takes the points, the boards of its other floors are not changed. Putting the same points on those boards needs a link between the boards of a typical level on the load schedule side: a separate proposal, not built.
 - **F. Colours.** Give ELV devices a colour of their own on Graphite, or leave them as they are? Recommended: a small proposal of its own, with samples.
 
 ## Build steps
@@ -79,6 +79,6 @@ As they were asked:
 3. Check level. **Built (v2.307).** The lights a room needs come from the Light room settings, as Lux check; ELV coverage is listed for the systems that have devices on the level.
 4. All rooms like this: Fill room first (no circuits), then Light room and Room devices.
 5. Socket room. **Built (v2.310).** One room per run; the spacing is typed (it starts at 3 m), and a socket takes the nearest right angle to its wall.
-6. Copy to levels for lights, sockets and switches.
+6. Copy to levels for lights, sockets and switches. **Built (v2.312).** A window in place of the arrow; a way that holds other points still takes the copies, with a note.
 
 One PR per step, each with its tests. Steps 3, 5 and 6 add a typed command (CHK, SOCK, CL) and steps 3 to 5 an entry on a room's right-click menu.

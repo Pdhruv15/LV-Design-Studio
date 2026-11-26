@@ -60,7 +60,7 @@ import { routeSettings, sizeRoute, trayPlanOf } from '../../calc/cableTray';
 import { fittingCounts, trayFittings, type TrayFitting } from '../../model/cadTrayFittings';
 import type { SketchItem } from '../../types';
 import { ELV_PALETTE, elvPlacedOn, elvSystemOf, isElvType, moveElv, placeElv, removeElv } from '../../components/elv/elvCadDevices';
-import { canFill, copyTo, coverageGaps, coverageNote, elvLayer, fillAt, fillRooms, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
+import { canFill, coverageGaps, coverageNote, elvLayer, fillAt, fillRooms, rotate as rotateElv, SYSTEM_LABEL } from '../../components/elv/elvPlan';
 import { safeFileName, saveBinary, saveBinaryAt, savePdf, saveText } from '../../util/files';
 import { angleDeg, areaOf, boxOf, distance, inside, m, m2, roomAround, segmentsOn } from '../../model/cadMeasure';
 import { layerMapFor, layersWith, roomsFromPlan, withLayerMap } from '../../model/cadRooms';
@@ -107,6 +107,7 @@ import { patchTable, TABLE_WIDTH, tableId, tableName, tablesOf, withTables, type
 import { layoutExtent, layoutPaper, layoutRegion, layoutViewports, PLAN_LABEL, PLAN_TYPES, planLegendLabels, planScale as sheetScale } from '../../docs/planLayout';
 import { drawingLayoutFromTemplate, layoutsFromTemplates, loadLayoutTemplates, saveLayoutTemplates, sheetWithTemplate, templateFromFileLayout, templateFromPaper, templateFromSheet, withLayoutTemplate, type LayoutTemplate } from '../../model/layoutTemplates';
 import { layoutDesign, layoutPlotHtml } from '../../docs/layoutPlot';
+import { CopyLevelsDialog } from './CopyLevelsDialog';
 import { ImportLayoutsDialog, LayoutManagerDialog, LayoutPaperDialog, LayoutPlotDialog, LayoutTemplatesDialog, ScaleListDialog } from './CadLayoutDialogs';
 import { applySetupManaged, copyManaged, deleteManaged, managerRows, moveManaged, renameManaged, type ManagerCtx } from './cadLayoutManager';
 import { setupsOf, tablesOf as penTablesOf } from '../../model/plotSetup';
@@ -640,6 +641,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   // References: the manager shown, the reference being attached (its dialog, or a point being picked for it), the one
   // being clipped and whether its clip is a closed outline picked on the plan.
   const [showXR, setShowXR] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [xDraft, setXDraft] = useState<CadRef | null>(null);
   const [xClip, setXClip] = useState<{ name: string; outline: boolean } | null>(null);
   if (pickedOn !== view) { setPickedOn(view); setResult(null); setPoints([]); setObjectMode(false); setLuxRoom(null); setSockRoom(null); setSockSkip([]); setSockOff([]); setRoomTemplateRoom(null); setContainmentSegment(null); setEm({ routes: [], points: [], rooms: [] }); setLvRoutePlan(null); setLvRouteSelected(0); setPicked([]); }
@@ -2034,7 +2036,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
   const [optAt, setOptAt] = useState<OptAt | null>(null);
   const [publishing, setPublishing] = useState(false)
 ;
-  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setOptAt(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyTo: (k) => copyLevel(k), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, showOnPlan, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
+  cad.actions.current = { newDrawing: newFile, save: () => void saveNow(), saveDwg: () => startSaveAs('dwg'), saveAs: () => startSaveAs(), exportAs: (k) => void exportAs(k), publish: () => setPublishing(true), settings: (t) => setOptAt(t ?? 'snap'), close: () => { if (view) closeDrawings([view]); }, closeOthers: () => { if (view) closeDrawings(cad.drawings.filter((v) => v !== view)); }, remove: removeSelected, addFound: () => addFound(), schedules: () => schedules(), copyLevels: () => copyLevels(), wireAll: () => wireAll(), layerManager: () => { if (view) setShowLM((v) => !v); else cad.say('LAYER  Open a drawing first.'); }, refs: () => { if (view) setShowXR(true); else cad.say('XREF  Open a drawing first.'); }, layoutCmd: (c) => { if (!layoutCmd(c)) cad.say(`${c}  Open a layout tab first.`); }, command: (t) => run(t), setProps, showOnPlan, reopen: () => { if (last) void load(() => reopenDrawing(last), 'That drawing is no longer where it was. Open it again.'); } };
   // While the page is not shown the ribbon's actions do nothing (they would work on a project as it was).
   useEffect(() => () => { cad.actions.current = NO_ACTIONS; }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page
   // Show on plan: once the target's drawing is the one shown, pick the target and zoom to it.
@@ -2164,12 +2166,10 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
     change(r.project, r.wired ? `${w?.tag ?? circuitLabel(project, f)} wired${w?.warning ? ` — ${w.warning}` : ''} · ⌘Z to undo` : `Wiring of ${circuitLabel(project, f).split(' · ')[0]} taken off · ⌘Z to undo`);
   }
 
-  /** Copy to level: this level's devices of the chosen ELV device's system, at the same plan positions. */
-  function copyLevel(key: string) {
-    const to = floors.find((f) => f.key === key);
-    if (!floor || !to || to.key === floor.key) return;
-    const r = copyTo(project, { building: floor.ref.building, level: floor.ref.level }, { building: to.ref.building, level: to.ref.level }, elvSystem, floorLabel(project.building, to));
-    if (r.next) change(r.next, r.message); else cad.say(`COPY  ${r.message}`);
+  /** Copy to levels (CL): opens the window that copies this level's devices to other levels. */
+  function copyLevels() {
+    if (!floor) { cad.say('CL  This drawing is not the plan of a level yet: set its level in Drafting settings (DS).'); return; }
+    setCopying(true);
   }
 
   /** Picks devices and drawn objects: one (it is the selected object, its details on the right), several, or none. */
@@ -4779,6 +4779,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
       laythw: () => allLayers('LAYTHW', { freeze: false }, 'thawed'),
       alignDevices: () => { if (pickedItems.length < 2) cad.say(`${c}  Select two or more devices first.`); else editDevices(c === 'ALIGNV' ? 'column' : c === 'SPACE' ? 'space' : 'row'); },
       wireAll: () => wireAll(),
+      copyLevels: () => copyLevels(),
       wireTags: () => cad.setWireTags(!cad.wireTags),
       coverage: () => cad.setCoverage(!cad.coverage),
       erase: () => removeSelected(),
@@ -5763,6 +5764,7 @@ export default function CadPage({ cad, project, onChange, onStatus, sheetUi, run
           units={({ 1: 'inches', 2: 'feet', 4: 'millimetres', 5: 'centimetres', 6: 'metres' } as Record<number, string>)[view?.info.units ?? 0] ?? 'drawing units'}
           onDraft={setBlockDlg} onClose={() => setBlockDlg(null)} onOk={() => { if (blockDlg.base) applyBlock(blockDlg.name, blockDlg.base, blockDlg.ids, blockDlg.mode, blockDlg.description); }}
           onPick={(what) => { pick([], what === 'objects' ? sketch.filter((it) => blockDlg.ids.includes(it.id)) : []); setBlockDlg({ ...blockDlg, picking: what }); cad.setTool('blockpick'); }} />}
+        {copying && floor && <CopyLevelsDialog project={project} from={floor} file={view?.file} onClose={() => setCopying(false)} onCopy={(next, message) => { setCopying(false); change(next, message); }} />}
         {dlg === 'ptype' && <PointStyleDialog style={pointStyleOf(project)} onClose={() => setDlg(null)}
           onSave={(s) => { setDlg(null); change({ ...project, cadPointStyle: s }, `PTYPE  Points shown as ${pointShapeLabel(s.mode).toLowerCase()}, ${s.size}${s.relative ? ' % of the view' : ' drawing units'} · ⌘Z to undo`); }} />}
         {dlg === 'style' && <TextStyleDialog styles={textStylesOf(project)} annoMm={anno.textMm} onClose={() => setDlg(null)}
