@@ -78,5 +78,6 @@ Busbars that already exist in the project (matched by name) are updated, not dup
 1. Solver and tests: hand-worked examples, and the same result as the existing study on a sample project with one transformer.
 2. Page: drawing, add buttons, side form, results.
 3. PDF sheet.
+   Mockup: docs/mockups/sc-sketch-sheet-mockup.html + .png (awaiting approval).
 4. Start from project.
 5. Send to SLD (in-line transformers after step 7 of the 2026-11-24 proposal).
