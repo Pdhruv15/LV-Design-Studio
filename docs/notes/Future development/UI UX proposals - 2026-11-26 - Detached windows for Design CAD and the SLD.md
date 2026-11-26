@@ -1,6 +1,6 @@
 # UI UX proposal – Detached windows for Design CAD and the SLD (2026-11-26)
 
-Status: **Approved 2026-11-26: the user answered "Go ahead" to the recommendations (A1, B1, C1, D1, E1, F1). Step 0 (the check) is next; nothing is built yet.**
+Status: **Approved 2026-11-26: the user answered "Go ahead" to the recommendations (A1, B1, C1, D1, E1, F1). Step 0 (the check) passed the same day; step 1 is being built.**
 
 The user asked for a detached tabs option in Design CAD and the SLD. A detached tab moves out of the main window into a window of its own. For example, the plan can sit on a second monitor beside the SLD.
 
@@ -84,6 +84,23 @@ Mockup: `docs/mockups/detached-windows-mockup.html` (image: `detached-windows-mo
   - F1 (recommended): the place and size are remembered on this computer, but every tab starts in the main window when the app starts. Detaching again is one click, and no window can be lost off screen.
   - F2: the windows that were detached when the project was last closed open again by themselves.
   - **Approved: F1.**
+
+## Step 0 results (2026-11-26)
+
+A hidden Electron test page (not the app), with the app's window settings, was loaded both as a file page (like the packaged app) and from a local development server. Every check passed in both:
+
+- Only a blank window with the app's own window name opens. Other names, outside pages and file pages are refused.
+- The main page can draw into the new window, and a React portal there works: a real click in the new window changed the main page's state, and real keys reached the portal.
+- The new window gets no bridge to the main process (`window.lvds` is missing there), while the main window's bridge still works.
+- Copied styles and the theme apply in the new window, and a theme change follows at once. A canvas draws there.
+- The new window can't go to another page, and its own attempts to open windows are refused. This needs its own rule: the new window does **not** inherit the main window's rule.
+- Closing the new window is seen by the main page at once, and the portal closes without errors. Closing the main window closes the new window too.
+- The new window runs in the main window's process and adds about 18 MB of memory.
+
+Two findings change the build:
+
+- **Type checks across windows.** An element in the new window is not an `HTMLElement` of the main page (`instanceof` gives false), so checks must use the element's own window or `nodeType`. About 17 such checks exist in the CAD page, its dialogs, the ribbon and `App.tsx`.
+- **Speed while the main window is minimised** could not be measured with hidden windows: they count as visible. The main window therefore keeps full speed while a detached window is open (`setBackgroundThrottling(false)`), and the CAD page uses its own window's animation frames.
 
 ## Steps once approved
 
