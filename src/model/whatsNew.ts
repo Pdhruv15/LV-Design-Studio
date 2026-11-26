@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.324', date: '2026-11-26',
+    items: [
+      { title: 'Annotate: the Text panel', text: 'Text now keeps Text or Notes, whichever you used last (its arrow has both). Beside it: the text style list (choose one to make it current), a Find box (type words, Enter: find and replace them) and the height box (new text\'s height on paper, or the texts picked; varies when they differ). The text tools (Numbered text, Justify, Height, Align, Case, Frame, Mask, Copy words, Find and replace) are under the panel\'s name; its corner button opens Text style.', action: 'cad', actionLabel: 'Open Design CAD' },
+    ]
+  },
+  {
     version: '2.322', date: '2026-11-26',
     items: [
       { title: 'Generator in parallel with the supply', text: 'A board with a standby generator has a new tick box, Runs in parallel with the supply. Tick it for a set that is synchronised with the supply: its fault current then adds to the supply\'s at that board, and reaches the boards above and below through the cables. Left unticked (a set behind a changeover) nothing changes.' },

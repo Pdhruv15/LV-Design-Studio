@@ -319,7 +319,7 @@ describe('Design CAD ribbon: the main tools named, every tool\'s name on hover',
     click(rows[1]);
     expect(cad.onTool).toHaveBeenLastCalledWith('tjust');
     more();
-    click([...document.querySelectorAll('[role="menuitem"]')].at(-1)!);
+    click([...document.querySelectorAll('[role="menuitem"]')].slice(-1)[0]);
     expect(cad.onCommand).toHaveBeenLastCalledWith('FIND');
     expect(group('Text').querySelector('.ribbon-caption-both .ribbon-launch')).toBeTruthy(); // the corner button stays beside the ▾
   });
