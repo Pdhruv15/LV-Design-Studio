@@ -2,6 +2,7 @@ import type { CadBlock } from '../../model/cadLoads';
 import type { EngineAnswer, EngineOps } from './cadOps';
 import type { RefGeometry } from '../../model/cadRefs';
 import type { CadPiece } from '../../model/cadCrop';
+import type { BlockInfo } from '../../model/cadTakeOver';
 import type { ErasedParts } from '../../model/cadErased';
 import wasmUrl from '../../../electron/cad/lvds_cad_reader_bg.wasm?url';
 import sampleGf from '../../../electron/samples/sample-villa-gf.dxf?url';
@@ -359,6 +360,19 @@ export async function explodeObjects(view: Pick<CadView, 'bytes'>, handles: stri
   return withSavingEngine(async (engine) => {
     try {
       return JSON.parse(await engine.call('explode', view.bytes, JSON.stringify(handles), !!opts.exact)) as { pieces: Record<string, CadPiece[]>; truncated: boolean };
+    } catch (e) {
+      throw new Error(`The block could not be read (${message(e)}).`);
+    }
+  });
+}
+
+/** The block inserts among objects of a drawing, by handle, each with its block's definition in block coordinates, its
+ * attribute definitions and attributes (take-over of a block as one block; engines/cad-reader/src/doc/explode.rs). A handle
+ * that is no insert is left out. */
+export async function blockInsertsOf(view: Pick<CadView, 'bytes'>, handles: string[]): Promise<Record<string, BlockInfo>> {
+  return withSavingEngine(async (engine) => {
+    try {
+      return JSON.parse(await engine.call('blockInserts', view.bytes, JSON.stringify(handles))) as Record<string, BlockInfo>;
     } catch (e) {
       throw new Error(`The block could not be read (${message(e)}).`);
     }

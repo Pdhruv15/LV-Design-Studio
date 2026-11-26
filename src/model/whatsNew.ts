@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.326', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: a drawing\'s block moves as one block', text: 'A block of the opened drawing now shows one grip at its base point; drag it to move the whole block, which stays a block when you edit it. Blocks the app cannot show exactly (mirrored, unevenly scaled, arrays) are still taken over as their separate objects.' }
+    ]
+  },
+  {
     version: '2.323', date: '2026-11-26',
     items: [
       { title: 'Transformer primary voltage and tap', text: 'On the board form of a main board with a transformer, Primary voltage and Tap now sit beside Vector group. Pick the primary voltage from the usual list (it shows on the SLD and schedules), and a tap of −5 to +5 %. A minus tap raises the secondary voltage, so the voltage drop at every board is lower by that amount (tap −2.5 % gives +2.56 %); a plus tap does the opposite. Nothing changes until a tap is set.' },

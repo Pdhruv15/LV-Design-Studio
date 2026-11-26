@@ -87,6 +87,9 @@ struct Ex<'a> {
     count: usize,
     truncated: bool,
     exact: bool,
+    /// Block definition mode: an entity without a parent that is ByBlock gives no colour, linetype or lineweight of its
+    /// own, so the app's insert gives it the insert's (a layer-0 child keeps layer 0, as without a parent).
+    def_mode: bool,
 }
 
 /// Whether the transform keeps shapes (rotation, uniform or mirrored scale, translation).
@@ -131,7 +134,7 @@ impl<'a> Ex<'a> {
             }
         }
         let layers = doc.layers.iter().map(|l| (l.name.clone(), (rgb_of(&l.color).unwrap_or(INK), l.line_type.trim().to_uppercase()))).collect();
-        Ex { doc, blocks, layers, count: 0, truncated: false, exact }
+        Ex { doc, blocks, layers, count: 0, truncated: false, exact, def_mode: false }
     }
 
     fn layer_of(&self, name: &str) -> (u32, String) { self.layers.get(name).cloned().unwrap_or((INK, String::new())) }
@@ -141,7 +144,7 @@ impl<'a> Ex<'a> {
         let (lrgb, llt) = self.layer_of(&layer);
         let rgb = match color {
             Color::ByLayer => lrgb,
-            Color::ByBlock => parent.map_or(INK, |p| p.rgb),
+            Color::ByBlock => parent.map_or(if self.def_mode { lrgb } else { INK }, |p| p.rgb),
             Color::None => INK,
             c => rgb_of(c).unwrap_or(INK),
         };
@@ -455,6 +458,89 @@ pub(crate) fn explode(doc: &CadDocument, handles: &[String], exact: bool) -> (Ha
         found.insert(h, out);
     }
     (found, ex.truncated)
+}
+
+/// An attribute (definition) text's anchor and the app's justification: the alignment point when it is aligned to a
+/// point (centre, right, top, middle…), else its insertion point on the baseline.
+fn att_place(h: acadrust::entities::HorizontalAlignment, v: acadrust::entities::VerticalAlignment, ins: &acadrust::types::Vector3, align: &acadrust::types::Vector3, t: &Affine) -> ([f64; 2], Option<&'static str>) {
+    use acadrust::entities::{HorizontalAlignment as AH, VerticalAlignment as AV};
+    if (matches!(h, AH::Left) && matches!(v, AV::Baseline)) || matches!(h, AH::Fit | AH::Aligned) { return (pt(t, (ins.x, ins.y)), None); }
+    let col = match h { AH::Left => 'L', AH::Right => 'R', _ => 'C' };
+    let just = match (v, h) {
+        (_, AH::Middle) => "MC",
+        (AV::Baseline, AH::Right) => "R",
+        (AV::Baseline, _) => "C",
+        (AV::Bottom, _) => match col { 'L' => "BL", 'R' => "BR", _ => "BC" },
+        (AV::Middle, _) => match col { 'L' => "ML", 'R' => "MR", _ => "MC" },
+        (AV::Top, _) => match col { 'L' => "TL", 'R' => "TR", _ => "TC" },
+    };
+    (pt(t, (align.x, align.y)), Some(just))
+}
+
+/// An attribute definition of a block (ATTDEF), in block coordinates.
+#[derive(Serialize, Clone, Debug)]
+pub(crate) struct AttDefInfo {
+    pub s: Style, pub tag: String, pub prompt: String, pub text: String, pub at: [f64; 2], pub h: f64, pub rot: f64,
+    #[serde(skip_serializing_if = "Option::is_none")] pub just: Option<&'static str>,
+    pub invisible: bool, pub constant: bool, pub preset: bool, pub verify: bool,
+}
+
+/// An attribute of an insert (ATTRIB), in world coordinates.
+#[derive(Serialize, Clone, Debug)]
+pub(crate) struct AttribInfo {
+    pub tag: String, pub value: String, pub at: [f64; 2], pub h: f64, pub rot: f64,
+    #[serde(skip_serializing_if = "Option::is_none")] pub just: Option<&'static str>,
+    pub invisible: bool,
+}
+
+/// A block insert with its definition, for taking the insert over as an app block: where and how it is placed, and what
+/// the block holds in block coordinates moved so the block's base point is the origin (exact mode, definition mode).
+#[derive(Serialize, Clone, Debug)]
+pub(crate) struct BlockInfo {
+    pub name: String, pub at: [f64; 2], pub sx: f64, pub sy: f64, pub rot: f64, pub flipped: bool, pub rows: u16, pub cols: u16,
+    pub base: [f64; 2], pub s: Style, pub items: Vec<Piece>, pub attdefs: Vec<AttDefInfo>, pub attribs: Vec<AttribInfo>,
+}
+
+/// The block inserts of the model-space objects with these handles (hex), by handle; a handle that is no insert, is
+/// hidden or whose block is too large is left out.
+pub(crate) fn block_inserts(doc: &CadDocument, handles: &[String]) -> HashMap<String, BlockInfo> {
+    let mut ex = Ex::new(doc, true);
+    let mut found = HashMap::new();
+    let wanted: Vec<String> = handles.iter().map(|h| h.trim().to_uppercase()).collect();
+    for e in doc.model_space_entities() {
+        let EntityType::Insert(x) = e else { continue };
+        let h = format!("{:X}", x.common.handle.value());
+        if !wanted.contains(&h) || x.common.invisible { continue; }
+        let cx = ex.ctx(&x.common.layer, &x.common.color, &x.common.linetype, x.common.line_weight, None);
+        let s = ex.style(&cx);
+        let base = ex.blocks.get(&x.block_name.to_uppercase()).copied().unwrap_or((0.0, 0.0));
+        let t = Affine::translate(-base.0, -base.1);
+        ex.count = 0;
+        ex.truncated = false;
+        ex.def_mode = true;
+        let mut items = vec![];
+        let mut attdefs = vec![];
+        for child in doc.entities_in_block(&x.block_name) {
+            if let EntityType::AttributeDefinition(a) = child {
+                if a.common.invisible { continue; }
+                let c = ex.ctx(&a.common.layer, &a.common.color, &a.common.linetype, a.common.line_weight, None);
+                let (at, just) = att_place(a.horizontal_alignment, a.vertical_alignment, &a.insertion_point, &a.alignment_point, &t);
+                attdefs.push(AttDefInfo { s: ex.style(&c), tag: a.tag.clone(), prompt: a.prompt.clone(), text: a.default_value.clone(), at, h: a.height, rot: a.rotation, just,
+                    invisible: a.flags.invisible, constant: a.flags.constant, preset: a.flags.preset, verify: a.flags.verify });
+            } else {
+                ex.entity(&mut items, child, &t, None, 1);
+            }
+        }
+        ex.def_mode = false;
+        if ex.truncated { continue; }
+        let attribs = x.attributes.iter().map(|a| {
+            let (at, just) = att_place(a.horizontal_alignment, a.vertical_alignment, &a.insertion_point, &a.alignment_point, &Affine::ID);
+            AttribInfo { tag: a.tag.clone(), value: a.value.clone(), at, h: a.height, rot: a.rotation, just, invisible: a.flags.invisible || a.common.invisible }
+        }).collect();
+        found.insert(h, BlockInfo { name: x.block_name.clone(), at: [x.insert_point.x, x.insert_point.y], sx: x.x_scale(), sy: x.y_scale(), rot: x.rotation,
+            flipped: x.normal.z < 0.0, rows: x.row_count.max(1), cols: x.column_count.max(1), base: [base.0, base.1], s, items, attdefs, attribs });
+    }
+    found
 }
 
 #[cfg(test)]
@@ -852,5 +938,87 @@ mod tests {
         use acadrust::entities::{Dimension, DimensionOrdinate};
         let (doc, e) = dim_doc(Dimension::Ordinate(DimensionOrdinate::new(v3(5.0, 5.0), v3(5.0, 9.0), true)));
         assert!(matches!(&one(&doc, e, true)[..], [Piece::Group { dim: None, items, .. }] if items.len() == 2));
+    }
+
+    fn info_of(doc: &CadDocument, k: usize) -> BlockInfo {
+        let h = doc.model_space_entities().find_map(|e| match e {
+            EntityType::Insert(x) if (x.insert_point.x - 1000.0 * k as f64).abs() < 1e-9 => Some(format!("{:X}", x.common.handle.value())),
+            _ => None,
+        }).unwrap();
+        block_inserts(doc, &[h.clone()]).remove(&h).unwrap()
+    }
+
+    #[test]
+    fn block_insert_info() {
+        let doc = drawing();
+        let a = info_of(&doc, 0);
+        assert_eq!((a.name.as_str(), a.rows, a.cols, a.flipped), ("DB-SYM", 1, 1, false));
+        assert!(near(a.at, [0.0, 0.0]) && near(a.base, [0.0, 0.0]) && (a.sx - 1.0).abs() < 1e-12 && (a.sy - 1.0).abs() < 1e-12);
+        assert_eq!(a.s, Style { layer: "E-LIGHT".into(), color: None, lt: None, lw: None });
+        assert!(a.attdefs.is_empty() && a.attribs.len() == 1 && a.attribs[0].tag == "CCT" && a.attribs[0].value == "L1-01");
+        assert!(near(a.attribs[0].at, [0.0, 70.0]));
+        // The items are the block's own, in block coordinates, with layer 0 kept and a ByBlock colour left to the insert.
+        assert_eq!(lines(&a.items).len(), 1);
+        let c = circles(&a.items);
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].0, Style { layer: "0".into(), color: None, lt: None, lw: None });
+        assert!(a.items.iter().any(|p| matches!(p, Piece::Hatch { s, .. } if s.layer == "0")));
+        // Placement is the insert's alone: the same items however the insert is turned, scaled or filled.
+        let (r, sc, g) = (info_of(&doc, 1), info_of(&doc, 2), info_of(&doc, 8));
+        assert!((r.rot - PI / 6.0).abs() < 1e-9 && (sc.sx - 2.0).abs() < 1e-9);
+        assert_eq!(serde_json::to_string(&r.items).unwrap(), serde_json::to_string(&a.items).unwrap());
+        assert_eq!(serde_json::to_string(&sc.items).unwrap(), serde_json::to_string(&a.items).unwrap());
+        assert_eq!(g.s.color, Some(0x00FF00));
+        assert_eq!(serde_json::to_string(&g.items).unwrap(), serde_json::to_string(&a.items).unwrap());
+        assert!((info_of(&doc, 3).sy - 1.0).abs() < 1e-12 && (info_of(&doc, 3).sx - 2.0).abs() < 1e-12);
+        assert!((info_of(&doc, 4).sx + 1.0).abs() < 1e-12);
+        let m = info_of(&doc, 7);
+        assert_eq!((m.rows * m.cols, m.rows.max(m.cols)), (6, 3));
+    }
+
+    #[test]
+    fn block_insert_base_point_and_attdefs() {
+        use acadrust::entities::{AttributeDefinition, AttributeEntity, Block, Insert};
+        use acadrust::tables::BlockRecord;
+        let mut doc = CadDocument::new();
+        let mut rec = BlockRecord::new("TAGGED");
+        rec.handle = doc.allocate_handle();
+        rec.block_entity_handle = doc.allocate_handle();
+        rec.block_end_handle = doc.allocate_handle();
+        rec.base_point = v3(10.0, 5.0);
+        let owner = rec.handle;
+        let mut b = Block::new("TAGGED", v3(10.0, 5.0));
+        b.common.handle = rec.block_entity_handle;
+        b.common.owner_handle = owner;
+        doc.block_records.add(rec).unwrap();
+        doc.add_entity(EntityType::Block(b)).unwrap();
+        let mut l = acadrust::entities::Line::from_coords(10.0, 5.0, 0.0, 30.0, 5.0, 0.0);
+        l.common.owner_handle = owner;
+        doc.add_entity(EntityType::Line(l)).unwrap();
+        let mut d = AttributeDefinition::new("NO".into(), "Number?".into(), "1".into());
+        d.insertion_point = v3(12.0, 8.0);
+        d.alignment_point = v3(12.0, 8.0);
+        d.height = 2.5;
+        d.flags.invisible = true;
+        d.common.owner_handle = owner;
+        doc.add_entity(EntityType::AttributeDefinition(d)).unwrap();
+        let mut ins = Insert::new("TAGGED", v3(100.0, 50.0));
+        let mut a = AttributeEntity::new("NO".into(), "7".into());
+        a.insertion_point = v3(102.0, 53.0);
+        a.alignment_point = a.insertion_point;
+        a.height = 2.5;
+        ins.attributes.push(a);
+        doc.add_entity(EntityType::Insert(ins)).unwrap();
+        let h = format!("{:X}", doc.model_space_entities().next().unwrap().common().handle.value());
+        let info = block_inserts(&doc, &[h.clone(), "FFFF".into()]).remove(&h).unwrap();
+        assert!(near(info.base, [10.0, 5.0]) && near(info.at, [100.0, 50.0]));
+        assert_eq!(lines(&info.items), vec![([0.0, 0.0], [20.0, 0.0])], "the base point is the origin");
+        assert_eq!(info.attdefs.len(), 1);
+        let d = &info.attdefs[0];
+        assert_eq!((d.tag.as_str(), d.prompt.as_str(), d.text.as_str(), d.invisible, d.constant), ("NO", "Number?", "1", true, false));
+        assert!(near(d.at, [2.0, 3.0]) && (d.h - 2.5).abs() < 1e-12);
+        assert_eq!(info.attribs.len(), 1);
+        assert!(near(info.attribs[0].at, [102.0, 53.0]) && info.attribs[0].value == "7");
+        assert!(block_inserts(&doc, &["FFFF".into()]).is_empty(), "an unknown handle is left out");
     }
 }

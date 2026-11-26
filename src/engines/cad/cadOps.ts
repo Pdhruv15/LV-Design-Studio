@@ -1,4 +1,4 @@
-import { CadDoc, explodeObjects, exportDwg, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
+import { CadDoc, blockInserts, explodeObjects, exportDwg, exportDxf, initSync } from '../../../electron/cad/lvds_cad_reader.js';
 
 /** What the CAD engine does, wherever it runs: in a worker of its own (cadWorker.ts), or in the page when a worker
  * cannot start (cadEngine.ts). One set of these holds one open drawing. */
@@ -26,6 +26,8 @@ export function engineOps() {
     erase: (handles: string) => (doc ? doc.set_erased(handles) : '{"objects":[],"ranges":[]}'),
     /** The exact pieces of objects of a drawing (its bytes), by handle (CROP). */
     explode: (bytes: Uint8Array, handles: string, exact?: boolean) => explodeObjects(bytes, handles, !!exact),
+    /** The block inserts among objects of a drawing (its bytes), by handle, with their definitions (take-over as blocks). */
+    blockInserts: (bytes: Uint8Array, handles: string) => blockInserts(bytes, handles),
     free() { doc?.free(); doc = null; }
   };
 }

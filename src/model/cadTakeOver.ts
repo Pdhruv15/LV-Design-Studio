@@ -1,5 +1,8 @@
 import type { SketchItem } from '../types';
-import type { CadPiece, PieceDim } from './cadCrop';
+import type { CadPiece, PieceDim, PieceStyle } from './cadCrop';
+import { blockDefOf, type CadBlockDef } from './cadBlocks';
+import { defFromPieces } from './cadBlockLibrary';
+import type { TextJust } from './cadText';
 import { linetypeIdOf, lineweightOf } from './cadLayerStyle';
 import { HATCH_PATTERNS, patternByName, placedLines, specFromLines, validCustom, type HatchSpec, type PlacedLine } from './cadHatch';
 import { fromDxfMtext } from './cadMtext';
@@ -125,3 +128,72 @@ export function standInsFor(handle: string, pieces: CadPiece[], ctx: TakeOverCtx
 }
 /** The handle of the drawing object a stand-in stands for; none for a drawn object. */
 export const standInHandle = (id: string): string | undefined => (id.startsWith('dw:') ? id.split(':')[1] : undefined);
+
+/** An insert of the opened drawing with its block's definition (engines/cad-reader/src/doc/explode.rs `block_inserts`):
+ * how it is placed, the block's items in block coordinates (the base point at the origin; layer 0 and ByBlock kept for
+ * the insert to give), its attribute definitions (block coordinates) and its attributes (drawing coordinates). */
+export interface BlockInfo {
+  name: string; at: [number, number]; sx: number; sy: number; rot: number; flipped: boolean; rows: number; cols: number; base: [number, number];
+  s: PieceStyle; items: CadPiece[];
+  attdefs: { s: PieceStyle; tag: string; prompt: string; text: string; at: [number, number]; h: number; rot: number; just?: TextJust; invisible: boolean; constant: boolean; preset: boolean; verify: boolean }[];
+  attribs: { tag: string; value: string; at: [number, number]; h: number; rot: number; just?: TextJust; invisible: boolean }[];
+}
+
+const keyed = (v: unknown): string => JSON.stringify(v, (k, x: unknown) => {
+  if (k === 'id') return undefined;
+  if (typeof x === 'number') return Math.round(x * 1e6) / 1e6 || 0;
+  return x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x;
+});
+/** Whether two block definitions hold the same objects (ids aside, numbers to 1e-6). */
+export const sameBlockItems = (a: CadBlockDef, b: CadBlockDef) => keyed(a.items) === keyed(b.items);
+
+const flatPieces = (ps: CadPiece[]): CadPiece[] => ps.flatMap((p) => (p.kind === 'group' && !p.dim ? flatPieces(p.items) : [p]));
+const turnsTo = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 1e-3;
+
+/** A block of the opened drawing as one app block: an insert (`dw:<handle>:0`) of a copy of the drawing's definition, so
+ * it has one grip at its base point and stays a block when taken over. None (the object is taken as its pieces) when the
+ * app's insert cannot show it exactly: an anonymous or dynamic block (`*` name), a MINSERT array, a mirrored or
+ * unevenly scaled insert (an insert has one positive scale), an empty block, an attribute that does not sit where its
+ * definition lands (or a changeable attribute definition with no attribute), pieces the definition cannot keep (their
+ * own linetype or lineweight, a dimension, a patterned hatch), or another block of that name already in the project.
+ * An equal block of that name in the project is reused. Pure: no React. */
+export function blockStandIn(handle: string, info: BlockInfo, projectDefs: CadBlockDef[], units?: number): { insert: SketchItem; def: CadBlockDef } | null {
+  const { sx, sy } = info;
+  if (!info.name || info.name.startsWith('*') || info.rows * info.cols > 1) return null;
+  if (!(sx > 0) || !(sy > 0) || info.flipped || Math.abs(sx - sy) > 1e-9 * Math.max(Math.abs(sx), Math.abs(sy))) return null;
+  const pieces = flatPieces(info.items);
+  if (pieces.some((p) => p.lt || p.lw !== undefined || p.kind === 'group' || (p.kind === 'hatch' && !p.solid && p.scale !== undefined))) return null;
+  const tags = info.attdefs.map((d) => d.tag.toLowerCase());
+  if (info.attdefs.some((d) => !d.tag.trim() || d.s.lt || d.s.lw !== undefined) || new Set(tags).size !== tags.length) return null;
+  // Each attribute must sit where its definition lands on this insert; a changeable definition needs its attribute.
+  const [c, r] = [Math.cos(info.rot), Math.sin(info.rot)];
+  for (const a of info.attribs) {
+    const d = info.attdefs[tags.indexOf(a.tag.toLowerCase())];
+    if (!d) return null;
+    const h = d.h * sx, at: [number, number] = [info.at[0] + sx * (d.at[0] * c - d.at[1] * r), info.at[1] + sx * (d.at[0] * r + d.at[1] * c)];
+    if (Math.hypot(a.at[0] - at[0], a.at[1] - at[1]) > 0.01 * h || Math.abs(a.h - h) > 0.01 * h || a.invisible !== d.invisible || !turnsTo(a.rot, d.rot + info.rot) || a.just !== d.just) return null;
+  }
+  if (info.attdefs.some((d) => !d.constant && !info.attribs.some((a) => a.tag.toLowerCase() === d.tag.toLowerCase()))) return null;
+  const made = defFromPieces(info.name, info.items, [0, 0], units);
+  const flag = (d: BlockInfo['attdefs'][number]) => ({ ...(d.invisible ? { invisible: true as const } : {}), ...(d.constant ? { constant: true as const } : {}), ...(d.verify ? { verify: true as const } : {}), ...(d.preset ? { preset: true as const } : {}) });
+  const def: CadBlockDef = {
+    ...made, items: [...made.items, ...info.attdefs.map((d, i): SketchItem => {
+      const [st] = drawnFromPieces([{ ...d.s, kind: 'point', at: [0, 0] }]);
+      const att = flag(d);
+      return { id: `a${i + 1}`, kind: 'attdef', layer: st.layer, ...(st.color ? { color: st.color } : {}), pts: [[d.at[0], d.at[1]]], tag: d.tag, prompt: d.prompt, text: d.text, h: d.h,
+        ...(d.rot ? { rot: d.rot } : {}), ...(d.just ? { just: d.just } : {}), ...(Object.keys(att).length ? { att } : {}) };
+    })]
+  };
+  if (!def.items.length) return null;
+  const have = blockDefOf(projectDefs, info.name);
+  if (have && !sameBlockItems(have, def)) return null;
+  const [st] = drawnFromPieces([{ ...info.s, kind: 'point', at: [0, 0] }]);
+  const attrs: Record<string, string> = {};
+  for (const d of info.attdefs) { const a = info.attribs.find((q) => q.tag.toLowerCase() === d.tag.toLowerCase()); if (a && !d.constant) attrs[d.tag] = a.value; }
+  const insert: SketchItem = {
+    id: `dw:${handle}:0`, kind: 'insert', layer: st.layer, pts: [[info.at[0], info.at[1]]], block: info.name,
+    ...(Math.abs(sx - 1) > 1e-12 ? { sc: sx } : {}), ...(info.rot ? { rot: info.rot } : {}), ...(Object.keys(attrs).length ? { attrs } : {}),
+    ...(st.color ? { color: st.color } : {}), ...(st.lt ? { lt: st.lt } : {}), ...(st.ltName ? { ltName: st.ltName } : {}), ...(st.lw !== undefined ? { lw: st.lw } : {})
+  };
+  return { insert, def: have ?? def };
+}

@@ -6793,6 +6793,29 @@ describe('Objects of an opened drawing edit like drawn ones (taken over on the f
     expect(onUndo).not.toHaveBeenCalled();
   });
 
+  const LIGHT: [number, number] = [6687.5, 7375]; // a light symbol, the block "L1" with its circuit attribute
+
+  it('a block of the drawing is taken over as one block (an insert and its definition) by Move', async () => {
+    await begin();
+    await clickAt(...LIGHT);
+    await command('M');
+    await until(() => onChange.mock.calls.length > 0);
+    expect(onChange.mock.calls[0][1]).toBe(`MOVE  1 object of ${F} taken over as drawn objects`);
+    expect(project.cadErased?.[F]).toHaveLength(1);
+    expect(items().map((x) => [x.kind, x.block, x.layer, x.attrs, x.pts])).toEqual([['insert', 'L1', 'E-LIGHT', { CCT: 'DB-GF1/R1' }, [LIGHT]]]);
+    const def = project.cadBlockDefs?.find((t) => t.file === F)?.defs.find((d) => d.name === 'L1');
+    expect(def?.items.map((x) => x.kind)).toEqual(['circle', 'line', 'line', 'attdef']);
+  });
+
+  it('Offset takes a block of the drawing over as its pieces, as before', async () => {
+    await begin();
+    await clickAt(...LIGHT);
+    await command('O');
+    await until(() => onChange.mock.calls.length > 0);
+    expect(items().map((x) => x.kind)).toEqual(['circle', 'line', 'line', 'text']);
+    expect(project.cadBlockDefs?.find((t) => t.file === F)).toBeUndefined();
+  });
+
   /** The next explode answers with these pieces for the object asked about (the take-over asks for the exact ones). */
   const asPieces = (pieces: unknown[]) => vi.mocked(explodeObjects).mockImplementationOnce(async (_v, handles) => ({ pieces: { [handles[0]]: pieces as never }, truncated: false }));
   const L = { layer: 'A-WALL' }, sq = [[0, 0, 0], [3000, 0, 0], [3000, 3000, 0], [0, 3000, 0]];

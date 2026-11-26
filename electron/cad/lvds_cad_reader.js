@@ -35,7 +35,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -55,7 +55,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -76,7 +76,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -86,7 +86,7 @@ export class CadDoc {
     constructor(bytes) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+            const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
             const len0 = WASM_VECTOR_LEN;
             wasm.caddoc_new(retptr, ptr0, len0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -120,7 +120,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
+            wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -141,7 +141,7 @@ export class CadDoc {
         let deferred2_1;
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export2);
+            const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export);
             const len0 = WASM_VECTOR_LEN;
             wasm.caddoc_pick(retptr, this.__wbg_ptr, x, y, tol, ptr0, len0, closed_only);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -151,7 +151,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+            wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -169,11 +169,11 @@ export class CadDoc {
         let deferred4_1;
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passStringToWasm0(kind, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const ptr0 = passStringToWasm0(kind, wasm.__wbindgen_export, wasm.__wbindgen_export2);
             const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passStringToWasm0(block, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const ptr1 = passStringToWasm0(block, wasm.__wbindgen_export, wasm.__wbindgen_export2);
             const len1 = WASM_VECTOR_LEN;
-            const ptr2 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export2);
+            const ptr2 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export);
             const len2 = WASM_VECTOR_LEN;
             wasm.caddoc_pick_like(retptr, this.__wbg_ptr, ptr0, len0, layer, ptr1, len1, ptr2, len2);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -183,7 +183,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred4_0, deferred4_1, 1);
+            wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
         }
     }
     /**
@@ -204,7 +204,7 @@ export class CadDoc {
         let deferred2_1;
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export2);
+            const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export);
             const len0 = WASM_VECTOR_LEN;
             wasm.caddoc_pick_window(retptr, this.__wbg_ptr, x0, y0, x1, y1, crossing, ptr0, len0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -214,7 +214,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+            wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -228,7 +228,7 @@ export class CadDoc {
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v1 = getArrayU32FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export(r0, r1 * 4, 4);
+            wasm.__wbindgen_export3(r0, r1 * 4, 4);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -244,7 +244,7 @@ export class CadDoc {
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v1 = getArrayU16FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export(r0, r1 * 2, 2);
+            wasm.__wbindgen_export3(r0, r1 * 2, 2);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -261,7 +261,7 @@ export class CadDoc {
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v1 = getArrayU16FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export(r0, r1 * 2, 2);
+            wasm.__wbindgen_export3(r0, r1 * 2, 2);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -278,7 +278,7 @@ export class CadDoc {
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v1 = getArrayF32FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export(r0, r1 * 4, 4);
+            wasm.__wbindgen_export3(r0, r1 * 4, 4);
             return v1;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -296,7 +296,7 @@ export class CadDoc {
         let deferred2_1;
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passStringToWasm0(handles_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+            const ptr0 = passStringToWasm0(handles_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
             const len0 = WASM_VECTOR_LEN;
             wasm.caddoc_set_erased(retptr, this.__wbg_ptr, ptr0, len0);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -306,7 +306,7 @@ export class CadDoc {
             return getStringFromWasm0(r0, r1);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+            wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -325,13 +325,13 @@ export class CadDoc {
     snap(x, y, r, mask, layers_on, fx, fy) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export2);
+            const ptr0 = passArray8ToWasm0(layers_on, wasm.__wbindgen_export);
             const len0 = WASM_VECTOR_LEN;
             wasm.caddoc_snap(retptr, this.__wbg_ptr, x, y, r, mask, ptr0, len0, fx, fy);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var v2 = getArrayF64FromWasm0(r0, r1).slice();
-            wasm.__wbindgen_export(r0, r1 * 8, 8);
+            wasm.__wbindgen_export3(r0, r1 * 8, 8);
             return v2;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
@@ -350,6 +350,42 @@ export class CadDoc {
 if (Symbol.dispose) CadDoc.prototype[Symbol.dispose] = CadDoc.prototype.free;
 
 /**
+ * The block inserts among model-space objects (take-over as app blocks), by handle, as JSON {handle: info} — see
+ * `explode::block_inserts`: placement, the block's base point and its items in block coordinates, ATTDEFs and ATTRIBs.
+ * @param {Uint8Array} bytes
+ * @param {string} handles_json
+ * @returns {string}
+ */
+export function blockInserts(bytes, handles_json) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(handles_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.blockInserts(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr3 = r0;
+        var len3 = r1;
+        if (r3) {
+            ptr3 = 0; len3 = 0;
+            throw takeObject(r2);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * The exact pieces of model-space objects (CROP), by handle, as JSON {pieces: {handle: [piece]}, truncated} — see
  * doc/explode.rs. Read from the drawing's bytes, like saving, so the open view keeps no second copy of the drawing.
  * `exact` (the take-over of objects): ellipses, paragraph texts, text alignment, hatch patterns and dimensions are kept whole.
@@ -363,9 +399,9 @@ export function explodeObjects(bytes, handles_json, exact) {
     let deferred4_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(handles_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr1 = passStringToWasm0(handles_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len1 = WASM_VECTOR_LEN;
         wasm.explodeObjects(retptr, ptr0, len0, ptr1, len1, exact);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -383,7 +419,7 @@ export function explodeObjects(bytes, handles_json, exact) {
         return getStringFromWasm0(ptr3, len3);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred4_0, deferred4_1, 1);
+        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
     }
 }
 
@@ -398,15 +434,15 @@ export function explodeObjects(bytes, handles_json, exact) {
 export function exportDwg(bytes, devices_json, shapes_json, erased_json, version) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(devices_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr1 = passStringToWasm0(devices_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(shapes_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr2 = passStringToWasm0(shapes_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passStringToWasm0(version, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr4 = passStringToWasm0(version, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len4 = WASM_VECTOR_LEN;
         wasm.exportDwg(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -417,7 +453,7 @@ export function exportDwg(bytes, devices_json, shapes_json, erased_json, version
             throw takeObject(r2);
         }
         var v6 = getArrayU8FromWasm0(r0, r1).slice();
-        wasm.__wbindgen_export(r0, r1 * 1, 1);
+        wasm.__wbindgen_export3(r0, r1 * 1, 1);
         return v6;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
@@ -436,15 +472,15 @@ export function exportDwg(bytes, devices_json, shapes_json, erased_json, version
 export function exportDxf(bytes, devices_json, shapes_json, erased_json, version) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(devices_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr1 = passStringToWasm0(devices_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(shapes_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr2 = passStringToWasm0(shapes_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr3 = passStringToWasm0(erased_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passStringToWasm0(version, wasm.__wbindgen_export2, wasm.__wbindgen_export3);
+        const ptr4 = passStringToWasm0(version, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len4 = WASM_VECTOR_LEN;
         wasm.exportDxf(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -455,7 +491,7 @@ export function exportDxf(bytes, devices_json, shapes_json, erased_json, version
             throw takeObject(r2);
         }
         var v6 = getArrayU8FromWasm0(r0, r1).slice();
-        wasm.__wbindgen_export(r0, r1 * 1, 1);
+        wasm.__wbindgen_export3(r0, r1 * 1, 1);
         return v6;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
@@ -472,7 +508,7 @@ export function readDrawing(bytes) {
     let deferred2_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export2);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
         wasm.readDrawing(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -482,7 +518,7 @@ export function readDrawing(bytes) {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+        wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
     }
 }
 function __wbg_get_imports() {

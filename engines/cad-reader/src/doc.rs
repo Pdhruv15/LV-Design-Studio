@@ -1429,6 +1429,15 @@ pub fn explode_objects(bytes: Vec<u8>, handles_json: &str, exact: bool) -> Resul
     Ok(serde_json::json!({ "pieces": pieces, "truncated": truncated }).to_string())
 }
 
+/// The block inserts among model-space objects (take-over as app blocks), by handle, as JSON {handle: info} — see
+/// `explode::block_inserts`: placement, the block's base point and its items in block coordinates, ATTDEFs and ATTRIBs.
+#[wasm_bindgen(js_name = blockInserts)]
+pub fn block_inserts(bytes: Vec<u8>, handles_json: &str) -> Result<String, JsError> {
+    let (doc, _) = read(bytes).map_err(|e| JsError::new(&e))?;
+    let handles: Vec<String> = serde_json::from_str(handles_json).map_err(|e| JsError::new(&e.to_string()))?;
+    serde_json::to_string(&explode::block_inserts(&doc, &handles)).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// Whether the segment (ax, ay)–(bx, by) touches the rectangle (inside it, or crossing its edge): Liang–Barsky clip.
 fn seg_meets_rect(ax: f64, ay: f64, bx: f64, by: f64, x0: f64, y0: f64, x1: f64, y1: f64) -> bool {
     let (dx, dy) = (bx - ax, by - ay);
