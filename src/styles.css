@@ -2665,3 +2665,10 @@ input.cad-dlg-ali{width:64px}
 .hatch-strip-chip:hover{background:color-mix(in srgb,var(--p2) 80%,var(--acc))}
 .hatch-strip-pop.all .hatch-strip-sw{width:50px}
 .hatch-strip-inline{display:flex;flex:none;padding:var(--space-1) 0;background:var(--p2);border-bottom:1px solid var(--line);overflow-x:auto}
+/* The Text panel: its caption's ▾ menu with the corner button beside it. */
+.ribbon-group .ribbon-caption-both{display:flex;align-items:center;justify-content:center}
+.ribbon-group .ribbon-caption-both .ribbon-launch{margin-left:4px}
+/* The Find box in the Text panel: as wide as the lists beside it. */
+.ribbon-find{display:flex;align-items:center;gap:2px;width:152px;height:24px}
+.ribbon-group .ribbon-find-input{flex:1;min-width:0;height:24px;padding:0 6px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--bg);color:var(--tx);font-size:var(--fs-xs)}
+.ribbon-group .ribbon-find-go{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;min-width:0;min-height:0;width:22px;height:24px;padding:0;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:none;color:var(--mut)}

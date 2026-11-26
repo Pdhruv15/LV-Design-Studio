@@ -87,6 +87,10 @@ export interface CadRibbonInfo {
   /** The dimension styles, the current one, and the style of the dimensions picked ('varies' when they differ; left
    * out with none picked), for the Dimensions list. */
   dimStyles?: { names: string[]; current: string; picked?: string };
+  /** The text styles and the current one, for the Text panel's list. */
+  textStyles?: { names: string[]; current: string };
+  /** The text height on paper (mm) for the Text panel: of the texts and notes picked ('varies' when they differ), or of new text. */
+  textH?: { mm: number | 'varies'; picked: boolean };
   /** The drawing's DIMLAYER: a layer's name, '.' for the current layer, or left out for the annotation layer. */
   dimLayer?: string;
   /** The scales offered for viewports (1:n). */

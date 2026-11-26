@@ -90,7 +90,7 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       ['Distance', 'Area', 'Room area', 'Inspect', 'Zoom extents', 'Drafting settings']]);
     expect(group('Annotate')).toBeNull(); // the LVCAD row had grown wider than a laptop's window
     pick('Annotate');
-    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style'], ['Dimension', 'Dimension style', 'Dimension break', 'Adjust space', 'Dimension layer', 'Update', 'Text position', 'Linear', 'Quick', 'Continue', 'Dimension styles'],
+    expect(['Text', 'Dimensions', 'Leaders and tags', 'Markup'].map(tools)).toEqual([['Text', 'Text style', 'Find', 'Text height', 'Text styles'], ['Dimension', 'Dimension style', 'Dimension break', 'Adjust space', 'Dimension layer', 'Update', 'Text position', 'Linear', 'Quick', 'Continue', 'Dimension styles'],
       ['Multileader', 'Multileader style', 'Add leader', 'Align', 'Room tag', 'Tag all rooms', 'Keynote'], ['Revision cloud', 'North arrow']]);
     expect(document.querySelector('.ribbon')!.className).toContain('small-named'); // named beside their icons, as on LVCAD
     const look = (subTabs: string[]) => {
@@ -158,14 +158,16 @@ describe('Design CAD ribbon: sub-tabs by use', () => {
       click(tool(t));
       expect(cad.onTool, t).toHaveBeenLastCalledWith(id);
     }
-    for (const [t, form, id] of [['Text', 'Notes (MT)', 'mtext'], ['Text', 'Numbered text (TCOUNT)', 'tcount'], ['Text', 'Justify (TJ)', 'tjust'], ['Text', 'Copy words (TCOPY)', 'tcopy'], ['Linear', 'Aligned (DAL)', 'dimal'], ['Linear', 'Angular (DAN)', 'dimang'], ['Linear', 'Radius (DRA)', 'dimrad'], ['Linear', 'Diameter (DDI)', 'dimdia'], ['Continue', 'Baseline (DBA)', 'dimbase'],
+    for (const [t, form, id] of [['Text', 'Notes (MT)', 'mtext'], ['Linear', 'Aligned (DAL)', 'dimal'], ['Linear', 'Angular (DAN)', 'dimang'], ['Linear', 'Radius (DRA)', 'dimrad'], ['Linear', 'Diameter (DDI)', 'dimdia'], ['Continue', 'Baseline (DBA)', 'dimbase'],
       ['Multileader', 'Leader (LE)', 'leader'], ['Multileader', 'Add leader (MLEADERADD)', 'mleaderadd'], ['Multileader', 'Remove leader (MLEADERREMOVE)', 'mleaderremove'], ['Multileader', 'Collect (MLC)', 'mleadercollect']]) {
       fromList(t, form);
       expect(cad.onTool, form).toHaveBeenLastCalledWith(id);
     }
     fromList('Multileader', 'Multileader style… (MLS)');
     expect(cad.onCommand).toHaveBeenLastCalledWith('MLEADERSTYLE');
-    for (const t of ['Text style', 'Dimension styles']) click(tool(t));
+    click(tool('Text styles'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('STYLE');
+    click(tool('Dimension styles'));
     expect(cad.onCommand).toHaveBeenLastCalledWith('DIMSTYLE');
     pick('LVCAD');
     for (const t of ['Inspect', 'Zoom extents', 'Drafting settings']) click(tool(t));
@@ -291,6 +293,93 @@ describe('Design CAD ribbon: the main tools named, every tool\'s name on hover',
     rerender({ tool: 'dimbase' });
     expect(tool('Baseline')).toBeTruthy();
     expect(tool('Continue')).toBeNull();
+  });
+
+  it('Text keeps Text or Notes, whichever was used last; the text tools and Find and replace are under the panel name', () => {
+    const { cad, rerender } = show();
+    pick('Annotate');
+    expect(tool('Text')).toBeTruthy();
+    fromList('Text', 'Notes (MT)');
+    expect(cad.onTool).toHaveBeenLastCalledWith('mtext');
+    rerender({ tool: 'mtext' });
+    rerender({ tool: 'none' });
+    expect(tool('Text')).toBeNull();
+    click(tool('Notes'));
+    expect(cad.onTool).toHaveBeenLastCalledWith('mtext');
+    click(document.querySelector('#ribbon-tools button[title="Notes: more options"]')!);
+    expect([...document.querySelectorAll('[role="menuitemradio"]')].map((b) => [b.textContent, b.getAttribute('aria-checked')])).toEqual([['Text (T)', 'false'], ['Notes (MT)', 'true']]);
+    click(document.querySelector('[role="menuitemradio"]')!);
+    expect(cad.onTool).toHaveBeenLastCalledWith('text');
+    const more = () => click(group('Text').querySelector('.ribbon-caption-more')!);
+    more();
+    const rows = [...document.querySelectorAll('[role="menuitem"]')] as HTMLButtonElement[];
+    expect(rows.map((b) => b.textContent)).toEqual(['Numbered text (TCOUNT)', 'Justify (TJ)', 'Height (TH)', 'Align or space (TA)', 'Case (TC)', 'Frame (TFRAME)', 'Mask (TMASK)', 'Copy words (TCOPY)', 'Find and replace… (FIND)']);
+    expect(document.querySelectorAll('.ribbon-split-menu hr').length).toBe(1);
+    expect(rows[8].previousElementSibling!.tagName).toBe('HR');
+    click(rows[1]);
+    expect(cad.onTool).toHaveBeenLastCalledWith('tjust');
+    more();
+    click([...document.querySelectorAll('[role="menuitem"]')].at(-1)!);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('FIND');
+    expect(group('Text').querySelector('.ribbon-caption-both .ribbon-launch')).toBeTruthy(); // the corner button stays beside the ▾
+  });
+
+  it('the Text panel lists the text styles: choosing one makes it current; Text style… opens them', () => {
+    const { cad } = show({ info: { ...INFO, textStyles: { names: ['Standard', 'Notes 3.5'], current: 'Standard' } } });
+    pick('Annotate');
+    const list = tool('Text style');
+    expect(list.querySelector('.nm')!.textContent).toBe('Standard');
+    click(list);
+    const rows = [...document.querySelectorAll('[aria-label="Text styles"] [role="menuitemradio"]')];
+    expect(rows.map((b) => [b.textContent, b.getAttribute('aria-checked')])).toEqual([['Standard', 'true'], ['Notes 3.5', 'false']]);
+    click(rows[1]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('STYLE R Notes 3.5');
+    click(tool('Text style'));
+    click(item('Text style… (ST)'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('STYLE');
+  });
+
+  it('the Find box runs FIND and the words on Enter and clears; its keys stay out of the drawing\'s shortcuts', () => {
+    const { cad } = show();
+    pick('Annotate');
+    const box = () => document.querySelector('input[aria-label="Find text"]') as HTMLInputElement;
+    const type = (v: string) => act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(box(), v); box().dispatchEvent(new Event('input', { bubbles: true })); });
+    const key = (k: string) => { const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }); act(() => { box().dispatchEvent(e); }); };
+    const seen = vi.fn();
+    document.addEventListener('keydown', seen);
+    type('DB-1');
+    key('Enter');
+    document.removeEventListener('keydown', seen);
+    expect(seen).not.toHaveBeenCalled();
+    expect(cad.onCommand).toHaveBeenLastCalledWith('FIND DB-1');
+    expect(box().value).toBe('');
+    type('  MDB  ');
+    click(tool('Find'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('FIND MDB');
+    click(tool('Find'));
+    expect(cad.onCommand).toHaveBeenLastCalledWith('FIND');
+    type('abc');
+    key('Escape');
+    expect(box().value).toBe('');
+  });
+
+  it('the Text panel shows the height of new text, or of the texts picked; the list sets it', () => {
+    const { cad, rerender } = show({ info: { ...INFO, textH: { mm: 2.5, picked: false } } });
+    pick('Annotate');
+    expect(tool('Text height').querySelector('.nm')!.textContent).toBe('2.5 mm');
+    click(tool('Text height'));
+    expect(document.querySelector('[aria-label="Text heights"] .hd')).toBeNull();
+    const rows = () => [...document.querySelectorAll('[aria-label="Text heights"] [role="menuitemradio"]')];
+    expect(rows().map((b) => b.textContent)).toEqual(['1.8 mm', '2.5 mm', '3.5 mm', '5 mm', '7 mm', '10 mm', '14 mm', '20 mm']);
+    expect(rows().filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.textContent)).toEqual(['2.5 mm']);
+    click(rows()[2]);
+    expect(cad.onCommand).toHaveBeenLastCalledWith('TH 3.5');
+    rerender({ info: { ...INFO, picked: 2, textH: { mm: 'varies', picked: true } } });
+    expect(tool('Text height').querySelector('.nm')!.textContent).toBe('varies');
+    click(tool('Text height'));
+    expect(document.querySelector('[aria-label="Text heights"] .hd')!.textContent).toBe('The texts picked');
+    click(item('Height… (TH)'));
+    expect(cad.onTool).toHaveBeenLastCalledWith('th');
   });
 
   it('lists the dimension styles: the current one for new dimensions, or the style of those picked to give them another', () => {

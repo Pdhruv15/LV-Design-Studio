@@ -33,6 +33,14 @@ export const textWidth = (s: string, h: number) => s.length * h * CHAR_W;
 /** The text heights on paper (mm) offered: the ISO 3098 series. */
 export const ISO_TEXT_MM = [1.8, 2.5, 3.5, 5, 7, 10, 14, 20];
 
+/** The Text panel's height box: the height on paper (mm) of the texts and notes picked ('varies' when they differ), else
+ * `forNew`, the height new text is made with. `k` is drawing units per paper mm. */
+export function textHeightInfo(picked: SketchItem[], forNew: number, k: number): { mm: number | 'varies'; picked: boolean } {
+  const hs = picked.filter((it) => (it.kind === 'text' || it.kind === 'mtext') && it.h && k > 0).map((it) => Math.round((it.h! / k) * 100) / 100);
+  if (!hs.length) return { mm: forNew, picked: false };
+  return { mm: hs.every((h) => h === hs[0]) ? hs[0] : 'varies', picked: true };
+}
+
 /** The anchor's place on the box as fractions of its width (0 left … 1 right) and height (0 baseline … 1 top). Bottom
  * is the baseline: the box has no descender. */
 export function justFractions(j: TextJust | undefined): { fx: number; fy: number } {
