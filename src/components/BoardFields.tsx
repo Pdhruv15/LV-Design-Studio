@@ -158,6 +158,12 @@ export default function BoardFields({ board, onChange, section, building, groups
               </select>
             </label>
           )}
+          {board.standby && (
+            <label className="row" title="A set that is synchronised with the supply feeds a fault together with it. Leave unticked for a standby set behind a changeover: only one source is connected at a time.">
+              <input type="checkbox" checked={!!board.standby.parallel} onChange={(e) => set('standby', { ...board.standby!, parallel: e.target.checked || undefined })} />
+              Runs in parallel with the supply (adds to the fault level)
+            </label>
+          )}
           {board.standby && board.standby.changeover !== 'ACB' && (
             <>
               <label>ATS rating (A)
