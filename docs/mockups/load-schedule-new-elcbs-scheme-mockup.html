@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Load schedule New ELCBs list with board schemes mockup</title>
+<style>
+/* App tokens (src/theme/tokens.css), Blueprint light; page sizes from src/styles.css (.ls-head, .ls-actions, table.ls) */
+:root{--bg:#EDF3FA;--panel:#ffffff;--p2:#E4EDF6;--line:#C9D8E8;--line-strong:#A7BED6;--tx:#142D4A;--mut:#4A647F;--acc:#1D5FBF;--ok:#177336;--warn:#8a5d00;--bad:#cf222e;--new:#7a3fd1;--mv:#13806f;--r:#c0392b;--y:#9a6b00;--b:#1D5FBF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/18px -apple-system,"Segoe UI",system-ui,sans-serif;width:1952px;padding:16px 20px 20px}
+h1{font-size:17px;margin:0 0 4px}
+h2{font-size:13px;margin:18px 0 6px;font-weight:600}
+.n{display:inline-block;width:18px;height:18px;line-height:18px;border-radius:50%;background:var(--new);color:#fff;text-align:center;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px}
+p.lead{margin:0 0 8px;color:var(--mut);max-width:1700px}
+.legend{color:var(--mut);font-size:12px;margin:0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 5px 0 14px}
+.legend i.nw{border:1.5px dashed var(--new)}
+.legend i.td{border:1.5px solid var(--mv)}
+svg{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.m{color:var(--mut)}
+.nwt{color:var(--new)}
+.card{background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:12px 16px}
+.card .t{font-size:13px;font-weight:600;margin-bottom:8px}
+.card ol{margin:0;padding-left:18px}
+.card ol li{margin:0 0 6px}
+.row{display:flex;gap:18px;align-items:flex-start}
+.tag{font-size:11px;color:var(--new);border:1px dashed var(--new);border-radius:10px;padding:1px 8px;white-space:nowrap}
+
+/* way strip */
+.strip{display:grid;grid-template-columns:270px repeat(24,40px);row-gap:6px;font-size:12px;flex:none}
+.strip .wl{grid-column:span 3;text-align:center;font-weight:600;border-bottom:1px solid var(--line);padding-bottom:2px}
+.strip .ph{text-align:center;font-weight:700;border:1px solid var(--line);background:var(--panel);margin:0 1px;border-radius:3px}
+.ph-r{color:var(--r)}.ph-y{color:var(--y)}.ph-b{color:var(--b)}.ph-ryb{color:var(--tx)}
+.strip .rl{grid-column:1;font-size:12px;line-height:15px;padding-right:10px;align-self:center}
+.br{height:26px;margin:0 3px;border:1.5px solid var(--mv);border-top:0;border-radius:0 0 7px 7px;font-size:11px;line-height:22px;text-align:center;color:var(--mv);font-weight:600;white-space:nowrap;overflow:hidden}
+.br.nw{border:1.5px dashed var(--new);border-top:0;color:var(--new)}
+.br.rc{margin:0 2px;font-size:9px;line-height:11px;padding-top:2px}
+
+/* board bar */
+.frame{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);padding:12px 16px 14px}
+.lshead{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px}
+.lshead .in{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:4px;padding:3px 7px;background:var(--p2)}
+.lshead .in.nw{border:1.5px dashed var(--new);background:#FBF9FE}
+.lshead .in svg{width:11px;height:11px}
+.lbl-nw{color:var(--new);font-weight:600}
+
+/* list / menu */
+.menu{background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;box-shadow:0 8px 24px rgba(20,45,74,.18);padding:4px;font-size:12px;white-space:nowrap}
+.menu div.it{padding:5px 10px;border-radius:5px;display:flex;justify-content:space-between;gap:14px;align-items:center}
+.menu div.it .m{font-size:11px}
+.menu div.it.hi{background:#EAF1FB}
+.menu div.it.off{color:#9AAABB}
+.menu div.it.off .m{color:#9AAABB}
+.menu div.it .ck{display:inline-block;width:14px;color:var(--acc);font-weight:700}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.menu .hd{font-size:11px;color:var(--mut);padding:5px 10px 2px;display:block;text-transform:uppercase;letter-spacing:.04em}
+.menu .foot{font-size:11px;color:var(--mut);padding:4px 10px 4px;white-space:normal;line-height:15px}
+.menu .sizes{display:flex;gap:6px;padding:4px 10px 6px}
+.menu .sizes span{border:1.5px dashed var(--new);border-radius:6px;padding:4px 8px;text-align:center;line-height:14px;background:#FBF9FE}
+.menu .sizes span b{display:block;font-size:12px}
+.menu .sizes span i{font-style:normal;font-size:10px;color:var(--mut)}
+.nwd{outline:1.5px dashed var(--new);outline-offset:-1px}
+.newpill{font-size:10px;color:var(--new);border:1px dashed var(--new);border-radius:8px;padding:0 6px;line-height:14px}
+
+/* tools row */
+.tools{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin:8px 0 4px;background:var(--panel)}
+.tools .lbl{font-size:11px;color:var(--mut);margin:0 2px;text-transform:uppercase;letter-spacing:.04em}
+.tools .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.tools .sp{flex:1}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);border-radius:6px;padding:5px 11px;font-size:12px;background:var(--panel);white-space:nowrap}
+.chip svg{width:14px;height:14px}
+.chip .dd{width:11px;height:11px;margin-left:-2px}
+.chip.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.chip.open{border-color:var(--acc);box-shadow:0 0 0 2px rgba(29,95,191,.18)}
+
+/* dialog */
+.dlg{width:600px;flex:none}
+.dlg .t{font-size:14px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between}
+.dlg .fr{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin-bottom:8px;font-size:12px}
+.dlg .in{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line-strong);border-radius:4px;padding:4px 8px;background:var(--panel)}
+.dlg .in.nw{border:1.5px dashed var(--new)}
+.dlg .in svg{width:11px;height:11px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px}
+.seg span{padding:4px 10px;border-right:1px solid var(--line);line-height:14px;text-align:center}
+.seg span:last-child{border-right:0}
+.seg span i{font-style:normal;font-size:10px;display:block;color:var(--mut)}
+.seg span.on{background:var(--acc);color:#fff}
+.seg span.on i{color:#DCE8F8}
+.seg.nw{border:1.5px dashed var(--new)}
+.dlg .two{display:flex;gap:8px;align-items:center}
+.dlg .two .in{width:64px}
+.dlg .note{font-size:11px;color:var(--mut);margin:6px 0 10px;line-height:16px}
+.dlg .btns{display:flex;gap:8px;justify-content:flex-end}
+.radio{display:flex;gap:16px}
+.radio span{display:inline-flex;align-items:center;gap:6px}
+.radio i{display:inline-block;width:12px;height:12px;border-radius:50%;border:1.5px solid var(--line-strong)}
+.radio i.on{border:4px solid var(--acc)}
+.cov{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#F7FAFD;line-height:17px}
+
+/* grid */
+table.ls{border-collapse:collapse;font-size:12px;width:100%;background:var(--panel)}
+table.ls th,table.ls td{padding:3px 5px;text-align:center;border:1px solid var(--line);white-space:nowrap}
+table.ls th{font-weight:600;background:var(--panel)}
+table.ls .shade{background:#F3F7FC}
+table.ls tr.watt td{background:#F7FAFD}
+table.ls td.elcb{font-size:11px;line-height:15px;background:#F7FAFD;min-width:150px}
+table.ls td.elcb b{font-size:12px}
+table.ls td.elcb.hand{border:1.5px dashed var(--new);background:rgba(122,63,209,.07)}
+table.ls td.room{text-align:left}
+table.ls td.rk{text-align:left;color:var(--mut)}
+table.ls tr.alt td{background:#FAFCFE}
+table.ls td.ok{color:var(--ok)}
+table.ls td.wn{color:var(--warn)}
+table.ls tr.spare td{color:var(--mut)}
+.cat{display:inline-block;font-size:9px;line-height:12px;padding:0 3px;border-radius:3px;margin-left:4px;vertical-align:1px;border:1px solid var(--line-strong);color:var(--mut)}
+
+/* country table */
+table.ct{border-collapse:collapse;font-size:12px;line-height:16px;background:var(--panel);width:100%}
+table.ct th,table.ct td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+table.ct th{background:#F3F7FC;font-weight:600}
+table.ct td.sc{color:var(--new);white-space:nowrap}
+table.ex{border-collapse:collapse;font-size:12px;line-height:16px;margin:0 0 10px;width:100%}
+table.ex th,table.ex td{border:1px solid var(--line);padding:3px 6px;text-align:left}
+table.ex th{background:#F3F7FC;font-weight:600}
+.chk{display:inline-flex;align-items:center;gap:6px;margin-right:14px}
+.chk i{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:3px;background:var(--acc);color:#fff}
+.chk i svg{width:9px;height:9px;stroke-width:2.4}
+.mini{display:inline-flex;border:1.5px dashed var(--new);border-radius:5px;padding:0 6px;font-size:11px;line-height:16px;color:var(--new);background:#FBF9FE;margin-left:4px}
+
+.notes{font-size:12px;line-height:17px}
+.notes ol{margin:0;padding-left:0;list-style:none}
+.notes li{margin:0 0 7px;padding-left:28px;position:relative}
+.notes li .n{position:absolute;left:0;top:0}
+.dec li{padding-left:0}
+.dec li b.k{color:var(--new)}
+</style>
+</head>
+<body>
+<h1>Load schedule — the New ELCBs list shows the board scheme (proposal 2026-11-26)</h1>
+<p class="lead">Follow-up to the earth leakage plan (step 5, v2.304). After Re-group all ELCBs… → <b>RCBO on every circuit</b>, new circuits get an RCBO, but the board bar's New ELCBs list still says <b>No ELCB</b>. After <b>One ELCB at the incomer</b>, the list still offers sizes that do nothing, because the incomer ELCB covers every new way. Nothing is changed in code until this is approved.</p>
+<p class="legend"><i class="nw"></i>new or changed</p>
+
+<h2><span class="n">1</span>Today (v2.304)</h2>
+<div class="frame">
+  <div class="lshead">
+    <span><span class="m">DB No.</span> <b>DB-GF1</b></span>
+    <span><span class="m">Fed from</span> <b>SMDB-GF</b></span>
+    <span><span class="m">Incomer</span> <b>100 A TP&amp;N</b></span>
+    <span><span class="lbl-nw">New ELCBs</span> <span class="in">No ELCB <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+    <span class="chip" style="padding:3px 10px">Re-group all ELCBs…</span>
+    <span><span class="m">Sensitivity</span> <span class="in">Auto (lighting 100 / power 30 mA) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+    <span><span class="m">RCD type</span> <span class="in">Auto (A; B for EV, drives, PV) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="card" style="width:900px"><div class="t">What the user sees on a DB re-grouped as "RCBO on every circuit"</div>
+    <ol><li>New ELCBs says <b>No ELCB</b>, yet every new circuit gets an RCBO. Nothing on the page says so.</li>
+    <li>On a DB with one ELCB at the incomer it says <b>No ELCB</b> too, and picking 6 circuits changes nothing you can see.</li></ol></div>
+  </div>
+</div>
+
+<h2><span class="n">2</span>Proposed: the list names what new circuits get (A)</h2>
+<div class="frame">
+  <div class="lshead">
+    <span><span class="m">DB No.</span> <b>DB-GF1</b></span>
+    <span><span class="m">Fed from</span> <b>SMDB-GF</b></span>
+    <span><span class="m">Incomer</span> <b>100 A TP&amp;N</b></span>
+    <span><span class="lbl-nw">New ELCBs</span> <span class="in nw">RCBO on every circuit <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+    <span class="chip" style="padding:3px 10px">Re-group all ELCBs…</span>
+    <span><span class="m">Sensitivity</span> <span class="in">Auto (lighting 100 / power 30 mA) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+    <span><span class="m">RCD type</span> <span class="in">Auto (A; B for EV, drives, PV) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="menu" style="width:520px;flex:none">
+      <span class="hd">New circuits on this DB get</span>
+      <div class="it"><span><span class="ck"></span>3 circuits (1 way)</span><span class="m">an ELCB of this size</span></div>
+      <div class="it"><span><span class="ck"></span>6 circuits (2 ways)</span><span class="m">an ELCB of this size</span></div>
+      <div class="it"><span><span class="ck"></span>9 circuits (3 ways)</span><span class="m">an ELCB of this size</span></div>
+      <div class="it"><span><span class="ck"></span>12 circuits (4 ways)</span><span class="m">an ELCB of this size</span></div>
+      <div class="it hi nwd"><span><span class="ck"><svg viewBox="0 0 12 12" style="width:11px;height:11px;stroke-width:2"><path d="M2 6.5 5 9.5 10 3"/></svg></span>RCBO on every circuit</span><span class="newpill">new</span></div>
+      <hr>
+      <div class="it"><span><span class="ck"></span>No ELCB for new ways</span><span class="m">an RCD upstream covers them</span></div>
+      <div class="foot"><b>RCBO on every circuit</b> gives circuits added from now on an RCBO; circuits already on the DB keep their device. Picking a size goes back to ELCBs for new ways. To give every circuit an RCBO now, use <b>Re-group all ELCBs…</b></div>
+    </div>
+    <div class="card" style="width:640px"><div class="t">Rules</div>
+    <ol><li>Choosing RCBO on every circuit here changes only new circuits (like the sizes). Re-group does the whole DB.</li>
+    <li>Re-group's RCBO scheme sets this list to RCBO on every circuit; a size or No ELCB clears it, as today.</li>
+    <li>Saved as today (<code>Board.rcboEveryCircuit</code>); no change to prints, BOQ or old projects.</li></ol></div>
+  </div>
+</div>
+
+<h2><span class="n">3</span>Proposed: on a DB with one ELCB at the incomer (B)</h2>
+<div class="frame">
+  <div class="lshead">
+    <span><span class="m">DB No.</span> <b>DB-GF1</b></span>
+    <span><span class="m">Fed from</span> <b>SMDB-GF</b></span>
+    <span><span class="m">Incomer</span> <b>100 A TP&amp;N</b></span>
+    <span><span class="lbl-nw">New ELCBs</span> <span class="in nw">ELCB-1 at the incomer <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+    <span class="chip" style="padding:3px 10px">Re-group all ELCBs…</span>
+    <span><span class="m">Sensitivity</span> <span class="in">Auto (lighting 100 / power 30 mA) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+    <span><span class="m">RCD type</span> <span class="in">Auto (A; B for EV, drives, PV) <svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></span></span>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="menu" style="width:520px;flex:none">
+      <span class="hd">New circuits on this DB get</span>
+      <div class="it hi nwd"><span><span class="ck"><svg viewBox="0 0 12 12" style="width:11px;height:11px;stroke-width:2"><path d="M2 6.5 5 9.5 10 3"/></svg></span>ELCB-1 at the incomer</span><span class="m">covers every new way</span></div>
+      <div class="it off"><span><span class="ck"></span>3 circuits (1 way)</span><span class="m"></span></div>
+      <div class="it off"><span><span class="ck"></span>6 circuits (2 ways)</span><span class="m"></span></div>
+      <div class="it off"><span><span class="ck"></span>9 circuits (3 ways)</span><span class="m"></span></div>
+      <div class="it off"><span><span class="ck"></span>12 circuits (4 ways)</span><span class="m"></span></div>
+      <hr>
+      <div class="it nwd"><span><span class="ck"></span>RCBO on every circuit</span><span class="m">below ELCB-1</span></div>
+      <div class="foot">The sizes are greyed: ELCB-1 at the incomer already covers every way. <b>RCBO on every circuit</b> stays open — new circuits get an RCBO below ELCB-1, which then turns S-type (Auto). To cut ELCB-1 into ELCBs over ways, use <b>Re-group all ELCBs…</b></div>
+    </div>
+    <div class="card" style="width:640px"><div class="t">Recommendation</div>
+    <ol><li><b>A + B</b>: one list that always says what a new circuit gets.</li>
+    <li>No new controls, no wording change elsewhere; the list keeps its place and width class.</li>
+    <li>One PR, with tests for the list values on all three kinds of DB.</li></ol></div>
+  </div>
+</div>
+<script>
+document.head.appendChild(document.createElement('style')).textContent = '@page{size:1952px ' + (Math.ceil(document.documentElement.scrollHeight) + 4) + 'px;margin:0}';
+</script>
+</body>
+</html>
