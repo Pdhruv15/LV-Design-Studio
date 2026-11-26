@@ -4584,6 +4584,73 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     await command('DIMSTYLE R NOPE');
     expect(last()).toBe('DIMSTYLE  There is no dimension style NOPE. D opens the styles.');
   });
+
+  it('QDIM dimensions a pick in one row: Baseline or Continuous, horizontal above it, each place once (v2.305)', async () => {
+    const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
+      { id: 'L1', kind: 'line', layer: 'LV-SKETCH', pts: [[X, 0], [X + 6000, 0]] },
+      { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X + 2000, 1000]], r: 300 },
+      { id: 'L2', kind: 'line', layer: 'LV-SKETCH', pts: [[X + 4000, 0], [X + 4000, 2000]] }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const dims = () => project.cadSketch![0].items.filter((it) => it.kind === 'dim');
+    await command('qdim');
+    expect(last()).toContain('QDIM  Select geometry to dimension:');
+    await clickAt(X + 500, 0); await clickAt(X + 2300, 1000); await clickAt(X + 4000, 1000);
+    expect(last()).toBe('QDIM  3 objects selected — Enter when done');
+    await command('');
+    expect(last()).toBe('QDIM  Specify dimension line position, or [Continuous/Baseline] <Continuous>:');
+    await command('B');
+    expect(last()).toBe('QDIM  Specify dimension line position, or [Continuous/Baseline] <Baseline>:');
+    await clickAt(X + 3000, 3000);
+    expect(dims().map((d) => Math.round(dimMeasure(d)))).toEqual([2000, 4000, 6000]);
+    expect(dims().every((d) => d.dir === 0 && d.layer === 'LV-ANNO')).toBe(true);
+    const ys = dims().map((d) => d.pts[2][1]);
+    expect(ys[0]).toBeCloseTo(3000, 6);
+    expect(ys[1]).toBeGreaterThan(ys[0]); expect(ys[2] - ys[1]).toBeCloseTo(ys[1] - ys[0], 6);
+    expect(dims()[1].pts[1]).toEqual([X + 4000, 2000]); // of the two points at X + 4000, the one nearer the line
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('QDIM  3 dimensions, baseline · ⌘Z to undo');
+    // The way it lays the row is kept; Continuous chains them, below the pick.
+    await command('qdim');
+    await clickAt(X + 500, 0); await clickAt(X + 4000, 1000); await command('');
+    expect(last()).toBe('QDIM  Specify dimension line position, or [Continuous/Baseline] <Baseline>:');
+    await command('C'); await clickAt(X + 3000, -1500);
+    expect(dims().slice(3).map((d) => Math.round(dimMeasure(d)))).toEqual([4000, 2000]);
+    for (const d of dims().slice(3)) expect(d.pts[2][1]).toBeCloseTo(-1500, 6);
+    // Enter with nothing picked ends it; a pick with nothing to measure says so.
+    await command('qdim'); await command('');
+    expect(last()).not.toContain('QDIM  Specify dimension line position');
+  });
+
+  it('DIMSPACE spaces the dimensions picked out from the base: a gap in metres, or Auto, leaving others (v2.305)', async () => {
+    const lin = (id: string, y: number): SketchItem => ({ id, kind: 'dim', layer: 'LV-ANNO', pts: [[X, 0], [X + 2000, 0], [X, y]], dir: 0, h: 250 });
+    const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
+      lin('D1', 1000), lin('D2', 2500), lin('D3', 6000),
+      { id: 'V1', kind: 'dim', layer: 'LV-ANNO', pts: [[X + 9000, 0], [X + 9000, 2000], [X + 10000, 0]], dir: Math.PI / 2, h: 250 }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const yOf = (id: string) => project.cadSketch![0].items.find((it) => it.id === id)!.pts[2][1];
+    await command('dimspace');
+    expect(last()).toContain('DIMSPACE  Select base dimension:');
+    await clickAt(X + 1000, 1000);
+    expect(last()).toBe('DIMSPACE  Select dimensions to space:');
+    await clickAt(X + 1000, 2500); await clickAt(X + 1000, 6000); await clickAt(X + 10000, 1000);
+    expect(last()).toBe('DIMSPACE  3 objects selected — Enter when done');
+    await command('');
+    expect(last()).toBe('DIMSPACE  Enter value or [Auto] <Auto>:');
+    await command('0.7');
+    expect([yOf('D1'), yOf('D2'), yOf('D3')]).toEqual([1000, 1700, 2400]);
+    expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('DIMSPACE  2 dimensions spaced 0.70 m apart; 1 at another angle, or radial, left as it was · ⌘Z to undo');
+    // Auto: twice the base's text (250 → 500).
+    await command('dimspace'); await clickAt(X + 1000, 1000); await clickAt(X + 1000, 1700); await clickAt(X + 1000, 2400); await command(''); await command('');
+    expect([yOf('D2'), yOf('D3')]).toEqual([1500, 2000]);
+    // 0 lines them up with the base.
+    await command('dimspace'); await clickAt(X + 1000, 1000); await clickAt(X + 1000, 1500); await clickAt(X + 1000, 2000); await command(''); await command('0');
+    expect([yOf('D2'), yOf('D3')]).toEqual([1000, 1000]);
+  });
 });
 
 describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to type over it', () => {
