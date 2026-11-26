@@ -11,6 +11,7 @@ import {
   type ScEdit, type ScSel
 } from '../../model/scSketchEdit';
 import { ask, askText } from '../ConfirmDialog';
+import { fmtFixed, fmtUpTo } from '../../util/format';
 import { NumField, Page } from '../ui';
 
 const n2 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -112,7 +113,7 @@ export default function ScSketchPage({ project, onChange, onStatus }: { project:
   function drawing(s: ScSketch, l: NonNullable<typeof lay>): ReactNode {
     const L = LAYOUT;
     return (
-      <svg width={l.width} height={l.height} viewBox={`0 0 ${l.width} ${l.height}`} role="img" aria-label={`Sketch ${s.name}`} data-testid="sc-drawing">
+      <svg width="100%" style={{ maxWidth: l.width, display: 'block' }} viewBox={`0 0 ${l.width} ${l.height}`} role="img" aria-label={`Sketch ${s.name}`} data-testid="sc-drawing">
         {l.branches.map((b) => {
           const mid = (b.y1 + b.y2) / 2;
           if (b.kind === 'cable') {
@@ -183,7 +184,7 @@ export default function ScSketchPage({ project, onChange, onStatus }: { project:
             <g key={p.id} data-lv-id={`fault-point:${p.id}`} {...hit({ kind: 'fault', id: p.id })}>
               <rect x={x0} y={p.y - 42} width={46 + w + 84} height={46} fill="transparent" />
               <FaultMark point={point} x={p.x} y={p.y} left={p.onCable} />
-              {r && <text x={p.onCable ? p.x - 46 - w - 6 : p.x + 46 + w + 6} y={p.y - 25} textAnchor={p.onCable ? 'end' : 'start'} style={bold}>{`Ik″ ${n2(r.ikMaxKa)} kA`}</text>}
+              {r && <text x={p.onCable ? p.x - 46 - w - 6 : p.x + 46 + w + 6} y={p.y - 25} textAnchor={p.onCable ? 'end' : 'start'} style={bold}>{`Ik″ ${fmtFixed(r.ikMaxKa, 2)} kA`}</text>}
               {isSel('fault', p.id) && outline(x0, p.y - 42, 46 + w + 84, 46)}
             </g>
           );
@@ -381,8 +382,8 @@ export default function ScSketchPage({ project, onChange, onStatus }: { project:
             <tbody>
               {sol.faultPoints.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.name}</td><td>{r.place}</td><td className="num">{n2(r.kv)}</td><td className="num">{n2(r.zPu)}</td><td className="num">{Number.isFinite(r.xr) ? n2(r.xr) : '—'}</td>
-                  <td className="num">{n2(r.ikMaxKa)}</td><td className="num">{n2(r.ipKa)}</td><td className="num">{n2(r.ikMinKa)}</td>
+                  <td>{r.name}</td><td>{r.place}</td><td className="num">{fmtUpTo(r.kv, 3)}</td><td className="num">{fmtFixed(r.zPu, 2)}</td><td className="num">{fmtFixed(r.xr, 2)}</td>
+                  <td className="num">{fmtFixed(r.ikMaxKa, 2)}</td><td className="num">{fmtFixed(r.ipKa, 2)}</td><td className="num">{fmtFixed(r.ikMinKa, 2)}</td>
                 </tr>
               ))}
             </tbody>

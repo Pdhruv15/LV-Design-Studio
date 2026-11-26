@@ -40,7 +40,7 @@ describe('Short circuit sketch page', () => {
     pick('bus:B2'); click('Fault point');
     expect(rows()).toHaveLength(1);
     const [point, place, kv, , , ik] = rows()[0];
-    expect(point).toBe('F1'); expect(place).toBe('Bus B2'); expect(kv).toBe('0.42'); expect(+ik!).toBeGreaterThan(10);
+    expect(point).toBe('F1'); expect(place).toBe('Bus B2'); expect(kv).toBe('0.415'); expect(+ik!).toBeGreaterThan(10);
     expect(document.querySelector('[data-testid="sc-drawing"]')!.textContent).toContain('kA');
     expect(document.querySelector('[data-testid="sc-drawing"]')!.textContent).toContain('TX-1 1,000 kVA');
   });
