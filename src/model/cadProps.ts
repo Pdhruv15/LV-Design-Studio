@@ -19,7 +19,7 @@ export const geomKind = (it: SketchItem): GeomKind => (it.tray ? 'tray' : it.cab
 /** What an object is, as the palette and the toolbar beside it name it. */
 export const kindLabel = (it: SketchItem) => (it.hatch ? 'Hatch' : it.tray ? 'Cable tray' : it.cable ? 'Cable route' : it.cloud ? 'Revision cloud'
   : it.infinite === 'xline' ? 'Construction line' : it.infinite === 'ray' ? 'Ray'
-  : it.kind === 'dim' ? (it.dimKind ? { radius: 'Radius dimension', diameter: 'Diameter dimension', angular: 'Angular dimension' }[it.dimKind] : 'Dimension')
+  : it.kind === 'dim' ? (it.dimKind ? { radius: 'Radius dimension', diameter: 'Diameter dimension', angular: 'Angular dimension', arclen: 'Arc length dimension', jogged: 'Jogged radius dimension', ordinate: 'Ordinate dimension' }[it.dimKind] : 'Dimension')
   : { line: 'Line', pline: it.closed ? 'Closed polyline' : 'Polyline', circle: 'Circle', arc: 'Arc', ellipse: 'Ellipse', text: 'Text', mtext: 'Note', mleader: 'Multileader', point: 'Point', insert: 'Block', attdef: 'Attribute' }[it.kind]); 
 
 export type PropKey = 'sx' | 'sy' | 'ex' | 'ey' | 'len' | 'ang' | 'cx' | 'cy' | 'r' | 'a0' | 'a1' | 'rx' | 'ry' | 'arc' | 'vx' | 'vy' | 'closed' | 'width' | 'service'

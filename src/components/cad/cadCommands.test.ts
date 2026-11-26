@@ -6,7 +6,7 @@ const BEFORE: Record<string, string> = {
   OPEN: '!open', CLOSE: '!close', CLOSEALL: '!close', FIT: '!fit', ZE: '!fit', 'Z E': '!fit', 'ZOOM E': '!fit', 'ZOOM EXTENTS': '!fit',
   Z: 'zoom', ZOOM: 'zoom', 'Z W': 'zoomwin', 'ZOOM W': 'zoomwin', 'ZOOM WINDOW': 'zoomwin', 'Z P': '!zoomPrev', 'ZOOM P': '!zoomPrev', 'ZOOM PREVIOUS': '!zoomPrev',
   'Z S': 'zoomscale', 'ZOOM S': 'zoomscale', 'ZOOM SCALE': 'zoomscale', QSELECT: '!qselect', QS: '!qselect', SELECTSIMILAR: 'selsim',
-  DRA: 'dimrad', DIMRADIUS: 'dimrad', DDI: 'dimdia', DIMDIAMETER: 'dimdia', DAN: 'dimang', DIMANGULAR: 'dimang',
+  DRA: 'dimrad', DIMRADIUS: 'dimrad', DDI: 'dimdia', DIMDIAMETER: 'dimdia', DAN: 'dimang', DIMANGULAR: 'dimang', DAR: 'dimarc', DIMARC: 'dimarc', DJO: 'dimjog', DIMJOGGED: 'dimjog', JOG: 'dimjog', DOR: 'dimord', DIMORDINATE: 'dimord',
   DI: 'dist', DIST: 'dist', DISTANCE: 'dist', AREA: 'area', AA: 'area', RA: 'room', ROOM: 'room', ROOMAREA: 'room',
   ROOMS: '!addRooms', ADDROOMS: '!addRooms', TR: 'trim', TRACE: 'trace', PN: 'name', NAME: 'name', LI: 'none', LIST: 'none',
   DEV: 'dev', DEVICE: 'dev', INSERT: '!blocksPalette', I: '!blocksPalette', '-INSERT': 'insert', ATT: '!attDef', ATTDEF: '!attDef', ATE: 'attedit', ATTEDIT: 'attedit', EATTEDIT: 'attedit', ATTEXT: '!attExport', M: 'move', MOVE: 'move', CO: 'copy', CP: 'copy', COPY: 'copy',

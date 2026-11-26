@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.317', date: '2026-11-26',
+    items: [
+      { title: 'Dimensions: Arc length, Jogged radius and Ordinate', text: 'Under Linear\'s arrow (Annotate → Dimensions): Arc length (DAR) measures along an arc, with the arc sign over its text; Jogged radius (DJO) dimensions a large arc or circle from a centre you place, with a jog in its line; Ordinate (DOR) writes a point\'s x or y from a datum (D sets the datum for the drawing; X or Y forces which).', action: 'cad' }
+    ]
+  },
+  {
     version: '2.316', date: '2026-11-26',
     items: [
       { title: 'Dimensions: Dimension break', text: 'Annotate → Dimensions → Dimension break (DIMBREAK, beside the style list): pick dimensions, Enter, then Enter again for a gap wherever a line crosses them: walls, other dimensions, the opened drawing. Or click the objects to break at first, then Enter. R takes the gaps off. The gaps stay where they are when the lines move: break again.', action: 'cad' },

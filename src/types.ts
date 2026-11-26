@@ -629,9 +629,12 @@ export interface SketchItem {
    * distance along that line. Left out: aligned with its two points. */
   dir?: number;
   /** A dimension's form: the radius or diameter of an arc or circle (pts: the centre, a point on it, the text's place),
-   * or the angle between two lines (pts: the vertex, a point on each line, the arc's place). Left out: the distance
-   * between two points, aligned or linear (src/model/cadSketch.ts). */
-  dimKind?: 'radius' | 'diameter' | 'angular';
+   * or the angle between two lines (pts: the vertex, a point on each line, the arc's place). Also:
+   * `arclen` (pts: the centre, the arc's start, its end, where the dimension arc goes; the arc runs anticlockwise from
+   * start to end), `jogged` (pts: the centre, a point on the arc or circle, the text's place, the centre override) and
+   * `ordinate` (pts: the feature point, the leader's end, the datum; `dir` is the leader's direction: π/2 up or down
+   * measures x, 0 across measures y). Left out: the distance between two points, aligned or linear (src/model/cadSketch.ts). */
+  dimKind?: 'radius' | 'diameter' | 'angular' | 'arclen' | 'jogged' | 'ordinate';
   /** A dimension: the name of the dimension style it was drawn with, or last given (left out: Standard). */
   dimStyle?: string;
   /** A linear or aligned dimension: the gaps in its lines where other lines cross them (Break, DIMBREAK): which line (0

@@ -18,6 +18,12 @@ export const DimAngularIcon = (p: P) => <Svg {...p}><path d="M4 20h16M4 20L15 6"
 export const DimRadiusIcon = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="8" /><path d="M12 12l5.6-5.6" /><path d="M14.5 6.5h3.5v3.5" /></Svg>;
 /** Diameter: across a circle through its centre. */
 export const DimDiameterIcon = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="8" /><path d="M6.3 17.7L17.7 6.3" /><path d="M14.2 6.3h3.5v3.5M9.8 17.7H6.3v-3.5" /></Svg>;
+/** Arc length: a dimension arc over an arc, with an arc sign above. */
+export const DimArcLengthIcon = (p: P) => <Svg {...p}><path d="M5 17a9 9 0 0 1 14 0" /><path d="M5 17l-1.5 2M19 17l1.5 2" /><path d="M9 7a4 4 0 0 1 6 0" /></Svg>;
+/** Jogged radius: a radius line from inside a circle with a jog in it. */
+export const DimJoggedIcon = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="8" /><path d="M7 18l3-3-2-2 6-6" /><path d="M14.5 6.5h3.5v3.5" /></Svg>;
+/** Ordinate: two leaders with jogs off an axis. */
+export const DimOrdinateIcon = (p: P) => <Svg {...p}><path d="M4 20h16M4 20V4" /><path d="M10 20v-6l2-2v-4M4 10h6" /></Svg>;
 /** Continue: a chain of dimensions, each from the last. */
 export const DimContinueIcon = (p: P) => <Svg {...p}><path d="M3 6v13M10 6v13M17 6v13M3 11h14" /><path d="M17 11h4M19 9l2 2-2 2" /></Svg>;
 /** Quick: a row of dimensions over a pick, at a stroke. */
