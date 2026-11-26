@@ -524,7 +524,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
     // ELV coverage: circles and camera views cut at their room, then the squares not covered.
     const bad = colour('--bad', '#ff5d6c');
     if (covers.length || gaps?.at.length) {
-      const cov = colour('--cad-elv', '#4aa8ff');
+      const cov = colour('--cad-elv', '#ff5fa2');
       const poly = (pts: Pt[]) => { const q = new Path2D(); q.moveTo(pts[0][0] - o0, pts[0][1] - o1); for (const v of pts.slice(1)) q.lineTo(v[0] - o0, v[1] - o1); q.closePath(); return q; };
       for (const c of covers) {
         const [x, y] = [c.at[0] - o0, c.at[1] - o1];
@@ -732,7 +732,7 @@ export default function CadCanvas({ view, hidden, layersOn, toggles, gridDots = 
       }
     }
     // Devices placed in the app: symbols in drawing units (they zoom with the plan), letters and labels below.
-    const elvC = colour('--cad-elv', '#4aa8ff'), selC = colour('--cad-snap', '#37d67a');
+    const elvC = colour('--cad-elv', '#ff5fa2'), selC = colour('--cad-snap', '#37d67a');
     for (const d of devices) {
       const x = d.x - o0, y = d.y - o1;
       ctx.strokeStyle = d.selected ? selC : d.elv ? elvC : lvC;
