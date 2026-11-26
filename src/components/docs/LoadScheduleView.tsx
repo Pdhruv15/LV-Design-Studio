@@ -32,7 +32,7 @@ import { SCHEDULE_GROUPS, scheduleBoardOrder, scheduleGroupOf, scheduleGroups, t
 import MenuButton from '../MenuButton';
 import CircuitEditDialog from './CircuitEditDialog';
 import ElcbDialog, { type ElcbTarget, type ElcbValues } from './ElcbDialog';
-import { addBoardElcb, editElcbAt, ELCB_SIZES, regroupElcbs, removeElcbAt, resizeElcb, setNewElcbSize, setNoRcd, setRcbo, type ElcbSize } from '../../model/elcbs';
+import { addBoardElcb, editElcbAt, ELCB_SIZES, newElcbsChoice, regroupElcbs, setNewRcbos, removeElcbAt, resizeElcb, setNewElcbSize, setNoRcd, setRcbo, type ElcbSize } from '../../model/elcbs';
 import ElcbCellMenu, { ElcbSizes, elcbWaysText } from './ElcbCellMenu';
 import RegroupDialog from './RegroupDialog';
 import TemplateExportDialog from './TemplateExportDialog';
@@ -282,6 +282,8 @@ export default function LoadScheduleView({
     }
   };
   const newSize = board.elcbGroupSize ?? 6;
+  const newChoice = newElcbsChoice(board);
+  const hasIncomerElcb = !!board.elcbs?.some((e) => e.incomer);
   const removeElcb = (g: ElcbGroup) => {
     onChange(removeElcbAt(project, board.id, g.ways[0]), { step: true });
     onStatus(`ELCB-${g.index} removed: ${elcbWaysText(g.ways)} take the New ELCBs size (${newSize ? `${newSize} circuits` : 'no ELCB'})`);
@@ -472,10 +474,19 @@ export default function LoadScheduleView({
             <span><span className="m">Fed from</span> <b>{board.upstreamId ?? 'Transformer'}</b></span>
             <label><span className="m">Location</span> <input value={board.location ?? ''} onChange={(e) => setBoard({ location: e.target.value || undefined })} /></label>
             <span><span className="m">Incomer</span> <b>{data.incomer ? `${data.incomer.breakerRatingA} A TP&N` : board.ratedCurrentA ? `${board.ratedCurrentA} A` : '—'}</b></span>
-            <label title="The size of the ELCBs for ways that have none yet; the ELCBs already on this DB keep their ways"><span className="m">New ELCBs</span>
-              <select value={newSize} onChange={(e) => onChange(setNewElcbSize(project, board.id, +e.target.value as ElcbSize), { step: true })}>
-                {ELCB_SIZES.map((n) => <option key={n} value={n}>{n} circuits ({n / 3} way{n > 3 ? 's' : ''})</option>)}
-                <option value={0}>No ELCB</option>
+            <label title={hasIncomerElcb
+              ? 'ELCB-1 at the incomer already covers every way, so the sizes are greyed. RCBO on every circuit gives circuits added from now on an RCBO below it. To cut ELCB-1 into ELCBs over ways, use Re-group all ELCBs…'
+              : 'What circuits added from now on get: an ELCB of this size for ways that have none yet, or an RCBO. The ELCBs and devices already on this DB stay as they are; to change them all, use Re-group all ELCBs…'}><span className="m">New ELCBs</span>
+              <select value={String(newChoice)} onChange={(e) => {
+                const v = e.target.value;
+                // Back to the incomer ELCB alone: new circuits get no RCBO of their own again.
+                if (v === 'incomer') onChange(setNewElcbSize(project, board.id, 0), { step: true });
+                else onChange(v === 'rcbo' ? setNewRcbos(project, board.id) : setNewElcbSize(project, board.id, +v as ElcbSize), { step: true });
+              }}>
+                {hasIncomerElcb && <option value="incomer">ELCB-1 at the incomer</option>}
+                {ELCB_SIZES.map((n) => <option key={n} value={n} disabled={hasIncomerElcb}>{n} circuits ({n / 3} way{n > 3 ? 's' : ''})</option>)}
+                <option value="rcbo">RCBO on every circuit</option>
+                <option value={0} disabled={hasIncomerElcb}>No ELCB</option>
               </select>
             </label>
             <button className="chip" title="Cut the whole DB again into ELCBs of one size, after showing what changes" onClick={() => setRegroupOpen(true)}>Re-group all ELCBs…</button>
