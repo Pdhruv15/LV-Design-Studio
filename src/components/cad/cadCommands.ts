@@ -7,7 +7,7 @@ import type { CadTool } from './cadState';
 /** Commands that run something on the page rather than start a tool. */
 export type CadAction = 'new' | 'open' | 'close' | 'fit' | 'addRooms' | 'schedules' | 'select' | 'xref' | 'xattach' | 'xclip' | 'layerManager' | 'newLayer' | 'clayer' | 'dimLayer' | 'layiso' | 'layuniso'
   | 'layoff' | 'layfrz' | 'laylck' | 'layulk' | 'laymcur' | 'layon' | 'laythw'
-  | 'alignDevices' | 'plot' | 'properties' | 'options' | 'unitsTab' | 'regen' | 'wireAll' | 'wireTags' | 'coverage' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
+  | 'alignDevices' | 'plot' | 'properties' | 'options' | 'unitsTab' | 'regen' | 'wireAll' | 'wireTags' | 'coverage' | 'copyLevels' | 'erase' | 'restoreDwg' | 'save' | 'saveDwg' | 'layers' | 'osnap' | 'grid' | 'ortho' | 'snap' | 'help'
   | 'textStyle' | 'dimStyle' | 'mleaderStyle' | 'pointStyle' | 'blockDialog' | 'blocksPalette' | 'attDef' | 'attExport' | 'saveAs' | 'closeOthers' | 'export' | 'exportPdf' | 'pngOut' | 'wblock' | 'publish' | 'dsettings' | 'osnapSettings' | 'polar' | 'otrack' | 'lwt' | 'dyn' | 'history'
   | 'copyClip' | 'cutClip' | 'copyBase' | 'pasteClip' | 'pasteOrig' | 'tbSave' | 'zoomPrev' | 'qselect'
   | 'undo' | 'redo' | 'selectAll' | 'selectInvert' | 'zoomSel' | 'count' | 'isolateObjects' | 'hideObjects' | 'unisolateObjects' | 'addSelected' | 'quickMeasure' | 'find' | 'bedit' | 'bsave' | 'bclose' | 'refedit' | 'refclose' | 'xcompare' | 'detectRooms';
@@ -59,7 +59,9 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['LR', 'LINK'], desc: 'Link a line as a cable route', tool: 'link' },
   { aliases: ['SCHED', 'SCHEDULES', 'UPDATE'], desc: 'Update schedules', action: 'schedules' },
   { aliases: ['FILL', 'FR'], desc: 'Fill a room with an ELV device', tool: 'fill' },
+  { aliases: ['CHK', 'CHECKLEVEL'], desc: 'Check this level: what is missing, over a limit or outside a room', tool: 'check' },
   { aliases: ['LUX', 'LIGHTROOM'], desc: 'Light a room by the lumen method', tool: 'lux' },
+  { aliases: ['SOCK', 'SOCKETROOM'], desc: 'Sockets along the walls of a room', tool: 'sockroom' },
   { aliases: ['RDT', 'ROOMDEVICES'], desc: 'Preview a coordinated room device template', tool: 'roomtemplate' },
   { aliases: ['EM', 'EMERGENCY'], desc: 'Emergency lighting', tool: 'em' },
   { aliases: ['SEL', 'SELECT'], desc: 'Select devices', action: 'select' },
@@ -125,6 +127,7 @@ export const CAD_COMMANDS: readonly CadCommand[] = [
   { aliases: ['W1', 'WIREONE'], desc: 'Wire one', tool: 'wire' },
   { aliases: ['TAGS'], desc: 'Wire tags on or off', action: 'wireTags' },
   { aliases: ['COV', 'COVERAGE'], desc: 'Coverage on or off', action: 'coverage' },
+  { aliases: ['CL', 'COPYLEVELS'], desc: "Copy this level's devices to other levels", action: 'copyLevels' },
   { aliases: ['REC', 'RECTANG', 'RECTANGLE'], desc: 'Rectangle', tool: 'rect' },
   { aliases: ['C', 'CIRCLE'], desc: 'Circle', tool: 'circle' },
   { aliases: ['A', 'ARC'], desc: 'Arc, 3 points', tool: 'arc' },
