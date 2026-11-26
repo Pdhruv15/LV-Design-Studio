@@ -1,5 +1,5 @@
 import { AddBoardIcon, BoardPropsIcon, EllipseIcon, TransformerIcon, TxGenSizingIcon } from './icons/elecIcons';
-import { DimAlignedIcon, DimAngularIcon, DimBaselineIcon, DimBreakIcon, DimContinueIcon, DimDiameterIcon, DimLinearIcon, DimQuickIcon, DimRadiusIcon, DimTextIcon } from './icons/dimIcons';
+import { DimAlignedIcon, DimAngularIcon, DimArcLengthIcon, DimBaselineIcon, DimBreakIcon, DimContinueIcon, DimDiameterIcon, DimJoggedIcon, DimLinearIcon, DimOrdinateIcon, DimQuickIcon, DimRadiusIcon, DimTextIcon } from './icons/dimIcons';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as KeyEvent } from 'react';
 import {
   BatteryCharging, Building2, Cable, ClipboardCheck, MessageSquareWarning, Inbox, CircuitBoard, Ellipsis, FileDown, FileSignature, FileSpreadsheet, FileText, GitPullRequestArrow, Send, Stamp,
@@ -334,7 +334,7 @@ const SHEET_VIEWS: MainView[] = ['drawings', 'drawing-register'];
 const GROUP_OF: Partial<Record<CadTool, number>> = {
   point: G.draw, divide: G.draw, measure: G.draw, line: G.draw, pline: G.draw, rect: G.draw, circle: G.draw, arc: G.draw, hatch: G.draw, hatchedit: G.draw, boundary: G.draw, polygon: G.draw, ellipse: G.draw, circle2p: G.draw, circle3p: G.draw, circled: G.draw, arcsce: G.draw, revcloud: G.drawnMarkup,
   move: G.modify, copy: G.modify, rotate: G.modify, mirror: G.modify, scale: G.modify, stretch: G.modify, trim: G.modify, extend: G.modify, offset: G.modify, fillet: G.modify, chamfer: G.modify, break: G.modify, join: G.modify, explode: G.modify, array: G.modify,
-  text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, insert: G.blocks, attedit: G.blocks, attpick: G.blocks, dim: G.dims, dimlin: G.dims, dimal: G.dims, qdim: G.dims, dimspace: G.dims, dimbreak: G.dims, dimtedit: G.dims, dimcont: G.dims, dimbase: G.dims, dimrad: G.dims, dimdia: G.dims, dimang: G.dims, leader: G.leaders, mleader: G.leaders, mleaderadd: G.leaders, mleaderremove: G.leaders, mleaderalign: G.leaders, mleadercollect: G.leaders, rtag: G.leaders, rtall: G.leaders, north: G.drawnMarkup, keynote: G.leaders,
+  text: G.annotate, mtext: G.annotate, draworder: G.modify, texttofront: G.modify, block: G.blocks, blockpick: G.blocks, insert: G.blocks, attedit: G.blocks, attpick: G.blocks, dim: G.dims, dimlin: G.dims, dimal: G.dims, qdim: G.dims, dimspace: G.dims, dimbreak: G.dims, dimtedit: G.dims, dimarc: G.dims, dimjog: G.dims, dimord: G.dims, dimcont: G.dims, dimbase: G.dims, dimrad: G.dims, dimdia: G.dims, dimang: G.dims, leader: G.leaders, mleader: G.leaders, mleaderadd: G.leaders, mleaderremove: G.leaders, mleaderalign: G.leaders, mleadercollect: G.leaders, rtag: G.leaders, rtall: G.leaders, north: G.drawnMarkup, keynote: G.leaders,
   tcount: G.annotate, tjust: G.annotate, th: G.annotate, talign: G.annotate, tcase: G.annotate, tframe: G.annotate, tmask: G.annotate, tcopy: G.annotate, matchprop: G.props, dist: G.measure, area: G.measure,
   xattach: G.reference, xclip: G.reference, crop: G.reference, room: G.rooms, trace: G.rooms, name: G.rooms, tray: G.cables, cable: G.cables, link: G.cables,
   dev: G.devices, fill: G.devices, lux: G.devices, roomtemplate: G.devices, em: G.devices, arl: G.editDevices, match: G.editDevices, wire: G.wiring
@@ -360,7 +360,10 @@ const LIN_FORMS: DimForm[] = [
   ['dimal', 'Aligned', 'DAL', DimAlignedIcon, 'Two points, then where the dimension line goes: along the two points'],
   ['dimang', 'Angular', 'DAN', DimAngularIcon, 'Two lines (or an arc, or a vertex and two points), then where the arc goes'],
   ['dimrad', 'Radius', 'DRA', DimRadiusIcon, 'Click an arc or circle, then where the text goes'],
-  ['dimdia', 'Diameter', 'DDI', DimDiameterIcon, 'Click an arc or circle, then where the text goes']
+  ['dimdia', 'Diameter', 'DDI', DimDiameterIcon, 'Click an arc or circle, then where the text goes'],
+  ['dimarc', 'Arc length', 'DAR', DimArcLengthIcon, 'Click an arc, then where the dimension arc goes'],
+  ['dimjog', 'Jogged', 'DJO', DimJoggedIcon, 'Click an arc or circle, then the centre the line starts from, then where the text goes'],
+  ['dimord', 'Ordinate', 'DOR', DimOrdinateIcon, 'A point and where its leader ends: its x or y from the datum (D sets the datum)']
 ];
 const CONT_FORMS: DimForm[] = [
   ['dimcont', 'Continue', 'DCO', DimContinueIcon, 'From the last dimension\'s second point: click each next point; the dimensions run in one line'],

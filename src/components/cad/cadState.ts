@@ -24,7 +24,7 @@ import type { ElvDeviceType } from '../../elv/devices';
 export type CadTool = 'none' | 'dist' | 'area' | 'containment' | 'room' | 'trace' | 'name' | 'tray' | 'cable' | 'link' | 'dev' | 'fill' | 'lux' | 'roomtemplate' | 'em' | 'arl' | 'match' | 'wire' | 'move' | 'copy' | 'rotate' | 'mirror' | 'scale' | 'align' | 'stretch' | 'trim' | 'extend' | 'offset' | 'fillet' | 'chamfer' | 'break' | 'join' | 'explode' | 'array' | 'matchprop' | 'hatch' | 'leader' | 'rtag' | 'north' | 'line' | 'xline' | 'ray' | 'pline' | 'rect' | 'circle' | 'arc' | 'text' | 'dim' | 'xattach' | 'xclip'
   | 'polygon' | 'ellipse' | 'circle2p' | 'circle3p' | 'circled' | 'arcsce' | 'revcloud' | 'crop'
   | 'dimlin' | 'dimal' | 'dimcont' | 'dimbase' | 'qdim' | 'dimspace' | 'dimbreak' | 'dimtedit' | 'tjust' | 'th' | 'talign' | 'tcase' | 'tprefix' | 'tsuffix' | 'torient' | 'tcen' | 'tcopy' | 'rtall' | 'tframe' | 'tmask' | 'tcount' | 'keynote' | 'mtext' | 'mleader' | 'mleaderadd' | 'mleaderremove' | 'mleaderalign' | 'mleadercollect' | 'draworder' | 'texttofront' | 'point' | 'divide' | 'measure' | 'block' | 'blockpick' | 'insert' | 'attedit' | 'attpick' | 'copybase' | 'paste'
-  | 'zoom' | 'zoomwin' | 'zoomscale' | 'pan' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang' | 'textedit' | 'hatchedit' | 'boundary';
+  | 'zoom' | 'zoomwin' | 'zoomscale' | 'pan' | 'selsim' | 'dimrad' | 'dimdia' | 'dimang' | 'dimarc' | 'dimjog' | 'dimord' | 'textedit' | 'hatchedit' | 'boundary';
 
 /** Sample plans shipped with the app (electron/samples, made by scripts/make-sample-villa-plans.mjs), shown while no
  * drawing is open — a test aid. To remove: empty this list and delete the files and cad:sampleBytes. */

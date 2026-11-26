@@ -231,7 +231,7 @@ export const MEASURED = '<>';
 export function dimLabel(it: SketchItem, metresPerUnit: number): string {
   if (it.text && !it.text.includes(MEASURED)) return it.text;
   const measured = it.dimKind === 'angular' ? dimAngle(dimMeasure(it), it.look) : (() => {
-    const len = dimMeasure(it) * metresPerUnit, pre = it.dimKind === 'radius' ? 'R' : it.dimKind === 'diameter' ? 'Ø' : '';
+    const len = (it.dimKind === 'ordinate' ? ordinateValue(it) : dimMeasure(it)) * metresPerUnit, pre = it.dimKind === 'radius' || it.dimKind === 'jogged' ? 'R' : it.dimKind === 'diameter' ? 'Ø' : '';
     return pre + (it.look ? dimLength(len, it.look) : len.toFixed(2));
   })();
   return it.text ? it.text.split(MEASURED).join(measured) : measured;
@@ -259,9 +259,24 @@ export function dimAngle(deg: number, s?: DimFormat): string {
 /** What a dimension measures (drawing units): its points' distance, or for a linear one the distance along its line. */
 export const dimMeasure = (it: Pick<SketchItem, 'pts' | 'dir' | 'dimKind'>): number => it.pts.length < 2 ? 0
   : it.dimKind === 'angular' ? (it.pts.length < 3 ? 0 : (angularArc(it).sweep * 180) / Math.PI)
+  : it.dimKind === 'arclen' ? (it.pts.length < 3 ? 0 : dist(it.pts[0], it.pts[1]) * arcSweep(it.pts))
+  : it.dimKind === 'ordinate' ? Math.abs(ordinateValue(it))
   : it.dimKind ? dist(it.pts[0], it.pts[1]) * (it.dimKind === 'diameter' ? 2 : 1)
   : it.dir === undefined ? dist(it.pts[0], it.pts[1])
     : Math.abs((it.pts[1][0] - it.pts[0][0]) * Math.cos(it.dir) + (it.pts[1][1] - it.pts[0][1]) * Math.sin(it.dir));
+
+/** An arc length dimension's sweep (radians, 0 < s <= 2π): anticlockwise from its start to its end about its centre. */
+const arcSweep = (pts: Pt[]): number => {
+  const [c, a, b] = pts, s = Math.atan2(b[1] - c[1], b[0] - c[0]) - Math.atan2(a[1] - c[1], a[0] - c[0]);
+  return ((s % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) || 2 * Math.PI;
+};
+/** Which way an ordinate dimension measures: its leader up or down (dir π/2) reads x, across (dir 0) reads y. */
+const ordinateAxis = (dir: number | undefined): 0 | 1 => (Math.abs(Math.sin(dir ?? 0)) > 0.5 ? 0 : 1);
+/** An ordinate dimension's signed value: the feature's x or y from the datum (drawing units). */
+const ordinateValue = (it: Pick<SketchItem, 'pts' | 'dir'>): number => {
+  const k = ordinateAxis(it.dir), d = it.pts[2] ?? [0, 0];
+  return it.pts[0][k] - d[k];
+};
 
 /** The lines of one arrowhead with its tip at d, pointing out along dir (at2 steps along and across the line). */
 export function arrowLines(kind: DimArrow, d: Pt, dir: number, size: number, at2: (d: Pt, a: number, b: number) => Pt): [Pt, Pt][] {
@@ -413,9 +428,11 @@ export { textWidth };
 export function dimOf(it: SketchItem, metresPerUnit: number) {
   const look = it.look;
   const label = look || it.dimKind || it.text?.includes(MEASURED) ? dimLabel(it, metresPerUnit) : it.text ?? '';
-  const h = it.h ?? (it.dimKind === 'angular' ? angularArc(it).r : dimMeasure(it)) * 0.04;
+  const h = it.h ?? (it.dimKind === 'angular' ? angularArc(it).r : it.dimKind === 'arclen' ? dist(it.pts[0], it.pts[3] ?? it.pts[1]) : it.dimKind === 'ordinate' ? dist(it.pts[0], it.pts[1]) : dimMeasure(it)) * 0.04;
   const box = { w: textWidth(label, h), h };
-  const g: DimLines = it.dimKind === 'angular' ? angularDimLines(it, look, h) : it.dimKind ? radialDimLines(it, look)
+  const g: DimLines = it.dimKind === 'angular' ? angularDimLines(it, look, h) : it.dimKind === 'arclen' ? arcLengthDimLines(it, look, h)
+    : it.dimKind === 'jogged' ? joggedDimLines(it, look) : it.dimKind === 'ordinate' ? ordinateDimLines(it, look, box)
+    : it.dimKind ? radialDimLines(it, look)
     : { ...dimensionLines(it.pts[0], it.pts[1], it.pts[2], look, box, it.dir, { brk: it.brk, textAt: it.pts[3], rot: it.rot }), arcs: [] };
   // A radius, diameter or angle's text turned (Text position → Angle).
   return { ...g, ...(it.dimKind && it.rot !== undefined ? { angle: it.rot } : {}), label, h };
@@ -485,6 +502,82 @@ export function angularDimLines(it: SketchItem, look?: DimLook, h = 0): DimLines
   const am = a0 + sweep / 2, angle = look?.textFlat ? 0 : readable(am - Math.PI / 2), lift = look?.gap ?? size * 0.25;
   const inward = -Math.sin(angle) * Math.cos(am) + Math.cos(angle) * Math.sin(am) < 0;
   return { lines, arcs: [{ c: v, r, a0, a1 }], text: onArc(am, r + lift + (inward ? h : 0)), angle, length: (sweep * 180) / Math.PI };
+}
+
+/** An arc length dimension (pts: the centre, the arc's start and end, where the dimension arc goes): an arc about the
+ * centre through that place, anticlockwise from the start's direction to the end's, with arrowheads at its ends,
+ * extension lines out from the arc where the dimension arc lies off it, and the length written outside its middle with
+ * an arc sign over it (drawn as geometry; text height h). */
+export function arcLengthDimLines(it: SketchItem, look?: DimLook, h = 0): DimLines {
+  const [c, A, , P] = it.pts, R = dist(c, A) || 1e-9, a0 = Math.atan2(A[1] - c[1], A[0] - c[0]), sweep = arcSweep(it.pts);
+  const Rd = (P ? dist(c, P) : 0) || R * 1.2;
+  const size = look ? look.size : R * 0.1, ext = look ? look.ext : R * 0.05, off = look ? look.off : 0;
+  const onArc = (a: number, k = Rd): Pt => [c[0] + k * Math.cos(a), c[1] + k * Math.sin(a)];
+  const lines: [Pt, Pt][] = [], a1 = a0 + sweep, side = Rd >= R ? 1 : -1;
+  if (Math.abs(Rd - R) >= 1e-9) {
+    for (const [a, hide] of [[a0, look?.hideExt1], [a1, look?.hideExt2]] as [number, boolean | undefined][]) {
+      if (!hide) lines.push([onArc(a, R + side * Math.min(off, Math.abs(Rd - R))), onArc(a, Rd + side * ext)]);
+    }
+  }
+  const along = (a: number) => (o: Pt, s: number, b: number): Pt => [o[0] - Math.sin(a) * s + Math.cos(a) * b, o[1] + Math.cos(a) * s + Math.sin(a) * b];
+  const e0 = onArc(a0), e1 = onArc(a1);
+  if (look) lines.push(...arrowLines(look.arrow, e0, 1, size, along(a0)), ...arrowLines(look.arrow2 ?? look.arrow, e1, -1, size, along(a1)));
+  else { const t = size / (2 * Math.SQRT2); for (const [e, a] of [[e0, a0], [e1, a1]] as [Pt, number][]) lines.push([along(a)(e, -t, -t), along(a)(e, t, t)]); }
+  const am = a0 + sweep / 2, angle = look?.textFlat ? 0 : readable(am - Math.PI / 2), lift = look?.gap ?? size * 0.25;
+  const inward = -Math.sin(angle) * Math.cos(am) + Math.cos(angle) * Math.sin(am) < 0;
+  const text = onArc(am, Rd + lift + (inward ? h : 0));
+  const arcs: DimLines['arcs'] = [{ c, r: Rd, a0, a1 }];
+  // The arc sign over the text, in the text's frame (x along it, y up as it reads): centre 0.95h up, radius 0.5h.
+  if (h > 0) {
+    const ca = Math.cos(angle), sa = Math.sin(angle), up = 0.95 * h;
+    arcs.push({ c: [text[0] - sa * up, text[1] + ca * up], r: 0.5 * h, a0: angle + Math.atan2(0.3, 0.4), a1: angle + Math.PI - Math.atan2(0.3, 0.4) });
+  }
+  return { lines, arcs, text, angle, length: R * sweep };
+}
+
+/** A jogged radius dimension (pts: the centre, a point on the arc or circle, the text's place, the centre override): the
+ * radius line is drawn from the override point, which stands for the far centre, with a 45° jog onto the line through
+ * the text's place and an arrowhead where it meets the arc; the text as a radius has it. */
+export function joggedDimLines(it: SketchItem, look?: DimLook): DimLines {
+  const [c, q0, at, O] = it.pts, r = dist(c, q0) || 1e-9;
+  const d = at ? dist(at, c) : 0, from = d > 1e-9 ? at : q0, dd = d > 1e-9 ? d : r;
+  const ux = (from[0] - c[0]) / dd, uy = (from[1] - c[1]) / dd, nx = -uy, ny = ux, size = look ? look.size : r * 0.1, outside = d > r;
+  const q: Pt = [c[0] + ux * r, c[1] + uy * r];
+  const at2 = (o: Pt, a: number, b: number): Pt => [o[0] + ux * a + nx * b, o[1] + uy * a + ny * b];
+  const lines: [Pt, Pt][] = [];
+  if (outside) lines.push([q, at]);
+  const o: Pt = O ?? c, e = (o[0] - c[0]) * nx + (o[1] - c[1]) * ny;
+  if (Math.abs(e) < 1e-9) lines.push([o, q]);
+  else {
+    const L1 = Math.max(0, ((q[0] - o[0]) * ux + (q[1] - o[1]) * uy) / 2), A1: Pt = [o[0] + ux * L1, o[1] + uy * L1];
+    const k = (A1[0] - c[0]) * ux + (A1[1] - c[1]) * uy + Math.abs(e), B1: Pt = [c[0] + ux * k, c[1] + uy * k];
+    lines.push([o, A1], [A1, B1], [B1, q]);
+  }
+  if (look) lines.push(...arrowLines(look.arrow, q, outside ? 1 : -1, size, at2));
+  else { const t = size / (2 * Math.SQRT2); lines.push([at2(q, -t, -t), at2(q, t, t)]); }
+  const rad = radialDimLines({ ...it, dimKind: 'radius', pts: [c, q0, at ?? q0] }, look);
+  return { lines, arcs: [], text: rad.text, angle: rad.angle, length: r };
+}
+
+/** An ordinate dimension (pts: the feature point, the leader's end, the datum; dir π/2 measures x, 0 measures y): a leader
+ * from the feature straight along its axis (with a jog where its end lies off the feature's line), and the value from
+ * the datum written along it past its end (box: the text's width and height). */
+export function ordinateDimLines(it: SketchItem, look?: DimLook, box?: { w: number; h: number }): DimLines {
+  const [F, E] = it.pts, k = ordinateAxis(it.dir), j = 1 - k, sgn = (n: number) => (n > 0 ? 1 : n < 0 ? -1 : 0);
+  const v: Pt = [0, 0]; v[j] = sgn(E[j] - F[j]) || 1;
+  const off = look ? look.off : 0, size = look ? look.size : 100, gap = look?.gap ?? size * 0.25, d = Math.abs(E[j] - F[j]);
+  const S: Pt = [F[0] + v[0] * Math.min(off, d / 3), F[1] + v[1] * Math.min(off, d / 3)];
+  const lines: [Pt, Pt][] = [];
+  if (Math.abs(E[k] - F[k]) < 1e-9) lines.push([S, E]);
+  else {
+    const Aq: Pt = [0, 0], Bq: Pt = [0, 0];
+    Aq[k] = F[k]; Aq[j] = F[j] + (v[j] * d) / 3;
+    Bq[k] = E[k]; Bq[j] = F[j] + (v[j] * 2 * d) / 3;
+    lines.push([S, Aq], [Aq, Bq], [Bq, E]);
+  }
+  const angle = readable(Math.atan2(v[1], v[0])), w = box?.w ?? 0, h = box?.h ?? 0;
+  const mid: Pt = [E[0] + v[0] * (gap + w / 2), E[1] + v[1] * (gap + w / 2)];
+  return { lines, arcs: [], text: [mid[0] + Math.sin(angle) * h / 2, mid[1] - Math.cos(angle) * h / 2], angle, length: Math.abs(ordinateValue(it)) };
 }
 
 /** A linear dimension's line from where it is dragged: horizontal when the point is above or below the two points,

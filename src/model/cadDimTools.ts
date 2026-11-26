@@ -27,6 +27,16 @@ export function dimLayerOf(p: Project, file: string | undefined, current: string
 export const withDimLayer = (p: Project, file: string, value: string | undefined): Project =>
   withLayerFile(p, file, { dimLayer: value && value.trim() && !same(value.trim(), ANNO_LAYER) ? value.trim() : undefined });
 
+/** The drawing's datum for ordinate dimensions (absent: 0,0). */
+export const ordDatumOf = (p: Project, file: string | undefined): Pt => layerFileOf(p, file).ordDatum ?? [0, 0];
+/** The project with the drawing's ordinate datum set; 0,0 (or none) is kept as no setting. */
+export const withOrdDatum = (p: Project, file: string, pt: Pt | undefined): Project =>
+  withLayerFile(p, file, { ordDatum: pt && (pt[0] !== 0 || pt[1] !== 0) ? [pt[0], pt[1]] : undefined });
+/** An ordinate dimension's `dir` from its feature point to its leader's end: π/2 (up or down, it measures x) when forced
+ * to x or when the end lies further along y, else 0 (across, it measures y). */
+export const ordinateDir = (f: Pt, e: Pt, force?: 'x' | 'y'): number =>
+  (force ? force === 'x' : Math.abs(e[1] - f[1]) >= Math.abs(e[0] - f[0])) ? Math.PI / 2 : 0;
+
 /** The style a dimension was drawn with (Standard when it records none). */
 export const styleOfDim = (it: Pick<SketchItem, 'dimStyle'>): string => it.dimStyle ?? STANDARD;
 /** The style of the dimensions among the objects picked: its name, 'varies' when they differ, or undefined with none. */

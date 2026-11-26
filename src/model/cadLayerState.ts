@@ -15,8 +15,9 @@ import { planOfLevel } from './cadPlans';
 export interface LayerSnap { on: boolean; freeze?: boolean; lock?: boolean; color?: string }
 export interface LayerStateSet { name: string; layers: Record<string, LayerSnap> }
 /** `props`: the colour, linetype and lineweight new objects take (absent = ByLayer). `dimLayer`: the layer new
- * dimensions go on (DIMLAYER; '.' the current layer; absent = LV-ANNO, src/model/cadDimTools.ts). */
-export interface CadLayerFile { current?: string; layers?: string[]; states?: LayerStateSet[]; iso?: string[]; archOn?: Record<string, boolean>; props?: ObjectProps; dimLayer?: string }
+ * dimensions go on (DIMLAYER; '.' the current layer; absent = LV-ANNO, src/model/cadDimTools.ts). `ordDatum`: the datum
+ * point ordinate dimensions measure from, in drawing units (absent = 0,0). */
+export interface CadLayerFile { current?: string; layers?: string[]; states?: LayerStateSet[]; iso?: string[]; archOn?: Record<string, boolean>; props?: ObjectProps; dimLayer?: string; ordDatum?: [number, number] }
 
 /** Where a row of the palette comes from: a drawn layer, one of the architect's, or a reference's (NAME|LAYER). */
 export type LayerGroup = 'drawn' | 'arch' | 'ref';

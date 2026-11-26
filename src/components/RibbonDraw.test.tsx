@@ -287,7 +287,7 @@ describe('Design CAD ribbon: the main tools named, every tool\'s name on hover',
     expect(tool('Radius').className).not.toContain('on'); // still Radius once it ends
     click(document.querySelector('#ribbon-tools button[title="Radius: more options"]')!);
     const rows = [...document.querySelectorAll('[role="menuitemradio"]')].map((b) => [b.textContent, b.getAttribute('aria-checked')]);
-    expect(rows).toEqual([['Linear (DLI)', 'false'], ['Aligned (DAL)', 'false'], ['Angular (DAN)', 'false'], ['Radius (DRA)', 'true'], ['Diameter (DDI)', 'false']]);
+    expect(rows).toEqual([['Linear (DLI)', 'false'], ['Aligned (DAL)', 'false'], ['Angular (DAN)', 'false'], ['Radius (DRA)', 'true'], ['Diameter (DDI)', 'false'], ['Arc length (DAR)', 'false'], ['Jogged (DJO)', 'false'], ['Ordinate (DOR)', 'false']]);
     rerender({ tool: 'dimbase' });
     expect(tool('Baseline')).toBeTruthy();
     expect(tool('Continue')).toBeNull();

@@ -4709,6 +4709,84 @@ describe('CAD 2D gap plan: zoom, quick select and radial / angular dimensions', 
     expect(d1().look?.textAlong).toBeUndefined();
     expect(onChange.mock.calls[onChange.mock.calls.length - 1][1]).toBe('DIMTEDIT  Text back where its style puts it · ⌘Z to undo');
   });
+
+  it('DAR dimensions an arc along its length, DJO a circle\'s radius from a centre override (v2.311)', async () => {
+    const start: Project = { ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [
+      { id: 'A1', kind: 'arc', layer: 'LV-SKETCH', pts: [[X, 0]], r: 1000, a0: 0, a1: Math.PI / 2 },
+      { id: 'C1', kind: 'circle', layer: 'LV-SKETCH', pts: [[X + 5000, 0]], r: 500 }
+    ] }] };
+    act(() => root.render(<Host start={start} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const dims = () => project.cadSketch![0].items.filter((it) => it.kind === 'dim');
+    await command('dar');
+    expect(last()).toContain('DIMARC  Select arc segment:');
+    await clickAt(X + 5000, 500); // the circle: not an arc
+    expect(last()).toBe('DIMARC  That is a circle: pick an arc.');
+    await clickAt(X - 3000, -3000);
+    expect(last()).toBe('DIMARC  No arc there. Select arc segment:');
+    await clickAt(X + 707.1, 707.1);
+    expect(last()).toBe('DIMARC  Specify arc length dimension location:');
+    await clickAt(X + 920, 920);
+    expect(dims()).toHaveLength(1);
+    const a = dims()[0];
+    expect(a).toMatchObject({ dimKind: 'arclen', layer: 'LV-ANNO' });
+    expect(a.pts[1][0]).toBeCloseTo(X + 1000, 0); expect(a.pts[1][1]).toBeCloseTo(0, 0);
+    expect(a.pts[2][0]).toBeCloseTo(X, 0); expect(a.pts[2][1]).toBeCloseTo(1000, 0);
+    expect(dimMeasure(a)).toBeCloseTo(1570.8, 0);
+    expect(dimLabel(a, 0.001)).toBe('1.57');
+    expect(last()).toBe('DIMARC  Select arc segment:');
+    await command('');
+    expect(last()).toContain('Space repeats DIMARC'); // Enter with nothing in progress ends it
+    // DJO: the circle, the centre override, then the text.
+    await command('djo');
+    expect(last()).toContain('DIMJOGGED  Select arc or circle:');
+    await clickAt(X + 5000, 500);
+    expect(last()).toBe('DIMJOGGED  Specify center location override:');
+    await clickAt(X + 4500, 1500);
+    expect(last()).toBe('DIMJOGGED  Specify dimension line location:');
+    await clickAt(X + 5000, 2000);
+    expect(dims()).toHaveLength(2);
+    const j = dims()[1];
+    expect(j).toMatchObject({ dimKind: 'jogged' });
+    expect(j.pts[0]).toEqual([X + 5000, 0]);
+    expect(j.pts[3][0]).toBeCloseTo(X + 4500, 0); expect(j.pts[3][1]).toBeCloseTo(1500, 0);
+    expect(dimLabel(j, 0.001)).toBe('R0.50');
+    expect(last()).toBe('DIMJOGGED  Select arc or circle:');
+  });
+
+  it('DOR writes a point\'s x or y from the datum: D sets the datum, X forces the axis (v2.311)', async () => {
+    act(() => root.render(<Host start={{ ...villa, cadLayerFile: undefined, cadSketch: [{ file: F, items: [] }] }} />));
+    await flush();
+    act(() => state.toggle('osnap'));
+    const dims = () => project.cadSketch![0].items.filter((it) => it.kind === 'dim');
+    await command('dor');
+    expect(last()).toContain('DIMORDINATE  Specify feature location or [Datum]:');
+    await command('D');
+    expect(last()).toBe('DIMORDINATE  Specify datum point <0,0>:');
+    await command(`${X},500`);
+    expect(Object.values(project.cadLayerFile!)[0].ordDatum).toEqual([X, 500]);
+    expect(last()).toBe('DIMORDINATE  Specify feature location or [Datum]:');
+    await command(`${X + 3000},2000`);
+    expect(last()).toBe('DIMORDINATE  Specify leader endpoint or [Xdatum/Ydatum]:');
+    await command('X');
+    await command(`${X + 3800},2500`); // across further than up: y unless forced
+    expect(dims()).toHaveLength(1);
+    const x = dims()[0];
+    expect(x).toMatchObject({ dimKind: 'ordinate', layer: 'LV-ANNO' });
+    expect(x.dir).toBeCloseTo(Math.PI / 2, 9);
+    expect(x.pts[2]).toEqual([X, 500]);
+    expect(dimLabel(x, 0.001)).toBe('3.00');
+    // Still running: the next feature, its end across, so it reads y from the datum.
+    expect(last()).toBe('DIMORDINATE  Specify feature location or [Datum]:');
+    await command(`${X + 3000},2000`); await command(`${X + 3800},2100`);
+    const y = dims()[1];
+    expect(y.dir).toBe(0);
+    expect(dimLabel(y, 0.001)).toBe('1.50');
+    await command(`${X + 3000},2000`); await command(''); // Enter part-way cancels that pick only
+    expect(last()).toContain('DIMORDINATE  Specify feature location or [Datum]:');
+    await command(''); expect(last()).toContain('Space repeats DIMORDINATE');
+  });
 });
 
 describe('CAD 2D gap plan: TEXTEDIT, a double-click on a text or dimension to type over it', () => {
