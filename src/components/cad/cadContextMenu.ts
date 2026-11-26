@@ -56,7 +56,7 @@ export function tidy(list: CtxEntry[]): CtxEntry[] {
 /** The icon of the tool running, in the header of the command menu (the ribbon's icon for it). */
 export const TOOL_MENU_ICON: Partial<Record<CadTool, CtxIcon>> = {
   line: 'line', xline: 'line', ray: 'line', pline: 'pline', rect: 'rect', polygon: 'rect', circle: 'circle', circle2p: 'circle', circle3p: 'circle', circled: 'circle', arc: 'arc', arcsce: 'arc', ellipse: 'ellipse', text: 'text', mtext: 'mtext',
-  dim: 'dim', dimlin: 'dim', dimal: 'dim', dimcont: 'dim', dimbase: 'dim', dimrad: 'dim', dimdia: 'dim', dimang: 'dim', hatch: 'hatch', insert: 'insert', revcloud: 'cloud', point: 'point', tray: 'tray', cable: 'route', dev: 'device',
+  dim: 'dim', dimlin: 'dim', dimal: 'dim', dimcont: 'dim', dimbase: 'dim', qdim: 'dim', dimspace: 'dim', dimrad: 'dim', dimdia: 'dim', dimang: 'dim', hatch: 'hatch', insert: 'insert', revcloud: 'cloud', point: 'point', tray: 'tray', cable: 'route', dev: 'device',
   move: 'move', copy: 'copy', rotate: 'rotate', mirror: 'mirror', scale: 'scale', stretch: 'stretch', array: 'array', offset: 'offset', trim: 'trim', extend: 'extend', fillet: 'fillet', chamfer: 'chamfer', break: 'break', join: 'join', explode: 'explode',
   pan: 'pan', zoom: 'zoom', zoomwin: 'zoom', zoomscale: 'zoom'
 };
