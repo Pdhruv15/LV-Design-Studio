@@ -179,9 +179,9 @@ const RT=['Project','Load schedule','SLD','Design CAD','Sheets','Specification',
 const rt=(act,o={})=>`<div class="dtw-rt">${RT.map(t=>`<div class="dtw-rtab${t===act?' dtw-on':''}">${t}${o.mark===t?`<span class="dtw-mk">${ic('win',12)}</span>`:''}${o.tip&&o.mark===t?`<div class="dtw-tip dtw-tipl">${o.tip}</div>`:''}</div>`).join('')}</div>`;
 const sub=act=>`<div class="dtw-st">${['LVCAD','Annotate','Electrical, ELV & sheets','Output'].map(t=>`<div class="dtw-stab${t===act?' dtw-on':''}">${t}</div>`).join('')}<div class="dtw-chk"><span class="dtw-box">${ic('ok',10)}</span>Show labels</div></div>`;
 const tools=g=>`<div class="dtw-ts">${g.map(([n,c])=>`<div class="dtw-tgp"><div class="dtw-tbx">${'<div class="dtw-tb"></div>'.repeat(c)}</div><div class="dtw-tn">${n}</div></div>`).join('')}</div>`;
-const T_CAD=[['Draw',6],['Modify',6],['Layers',3],['Devices',5]];
-const T_ELEC=[['Devices',6],['Cables',4],['ELV',4],['Sheets',3]];
-const T_SLD=[['Board',4],['Edit',5],['Symbols',5],['View',3]];
+const T_CAD=[['Draw',6],['Modify',6],['Blocks',3],['Layers',4]];
+const T_ELEC=[['Rooms',4],['Cables and boards',5],['Devices',6],['Level',3]];
+const T_SLD=[['Run and check',4],['Canvas',3],['Boards',5],['Equipment',5]];
 const mrow=r=>r.sep?'<div class="dtw-sep"></div>':`<div class="dtw-mr${r.nw?' dtw-new':''}${r.hv?' dtw-hv':''}"${r.id?` id="${r.id}"`:''}>${r.ic?ic(r.ic,14):''}${r.t}${r.k?`<span style="margin-left:auto;color:var(--mut)">${r.k}</span>`:''}</div>`;
 const menu=(rows,st)=>`<div class="dtw-menu" style="${st}">${rows.map(mrow).join('')}</div>`;
 const CLOSE=[{t:'Close'},{t:'Close others'},{t:'Close all'}];
