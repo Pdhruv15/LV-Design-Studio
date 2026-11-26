@@ -18,9 +18,15 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
-    version: '2.319', date: '2026-11-26',
+    version: '2.321', date: '2026-11-26',
     items: [
       { title: 'Load schedule: New ELCBs says what new circuits get', text: 'The New ELCBs list in the board bar now has RCBO on every circuit: circuits you add from then on get an RCBO, and the ones already on the DB keep their device. On a DB with one ELCB at the incomer the list shows ELCB-1 at the incomer and greys the sizes, because that ELCB already covers every way; RCBO on every circuit still works there, below it.' }
+    ]
+  },
+  {
+    version: '2.320', date: '2026-11-26',
+    items: [
+      { title: 'Design CAD: ELV devices in a colour of their own', text: 'ELV devices on the plan, their Coverage circles and the ELV items of the device palette and gallery are now rose: lighter on the dark themes, deeper on the light ones. Before, they took the accent colour, so on Graphite they looked like LV devices and on Blueprint like selected objects. Plots and PDFs stay black-and-white.', action: 'cad', actionLabel: 'Open Design CAD' }
     ]
   },
   {

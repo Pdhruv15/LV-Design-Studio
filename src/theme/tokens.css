@@ -47,6 +47,7 @@
   /* Diagram result labels and phase colours */
   --res-cur: #7fd1ff;
   --sel: #4aa8ff;         /* picked objects and grips in Design CAD */
+  --elv-dev: #ff5fa2;     /* ELV devices on the plan: apart from LV yellow and the selection blue */
   --res-fault: #ff9f43;
   --res-pf: #b784ff;
   --ph-r: #ff6b6b;
@@ -132,6 +133,7 @@
   --field-line-hover: #6B6557;
   --res-cur: #0369a1;
   --sel: #1D5FBF;         /* picked objects and grips in Design CAD */
+  --elv-dev: #c0267a;     /* ELV devices on the plan: apart from LV yellow and the selection blue */
   --res-fault: #c2410c;
   --res-pf: #7e22ce;
   --ph-r: #c81e1e;
