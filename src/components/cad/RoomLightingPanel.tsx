@@ -1,8 +1,11 @@
 import { REFLECTANCES } from '../../calc/lighting';
 import { luminairesOf, roomLighting, roomLightingDefaults, type RoomLightingInput, type RoomLightingResult } from '../../calc/roomLighting';
-import { circuitLabel, type PointLuminaire } from '../../model/cadDevices';
+import { circuitLabel, circuitWay, type PointLuminaire } from '../../model/cadDevices';
 import { m, m2 } from '../../model/cadMeasure';
+import { pointMax } from '../../model/circuitRoom';
+import { ROOM_SCOPE_MAX, type RoomLightPlan, type RoomScope } from '../../model/roomScope';
 import type { BuildingRoom, Feeder, Project } from '../../types';
+import RoomScopeButtons from './RoomScopeButtons';
 
 /** Light room (LUX) settings: the luminaire and the room's values the engineer changed (blank = the room's default). */
 export interface LuxSettings { lum: string; mf: string; uf: string; refl: string; replace: boolean; lux?: string; ceil?: string; wp?: string }
@@ -24,7 +27,7 @@ export function lightingOf(p: Project, room: BuildingRoom, s: LuxSettings): { in
 }
 
 /** Side panel of Light room: the room kept, its inputs, the result and Place. */
-export default function RoomLightingPanel({ project, room, lit, settings, onSettings, circuits, feederId, onFeeder, onPlace, onCancel }: {
+export default function RoomLightingPanel({ project, room, lit, settings, onSettings, circuits, feederId, onFeeder, onPlace, onCancel, scope, onScope, counts, plan, levelName, typeLabel }: {
   project: Project;
   room?: BuildingRoom;
   lit?: { input: RoomLightingInput; result: RoomLightingResult };
@@ -35,6 +38,13 @@ export default function RoomLightingPanel({ project, room, lit, settings, onSett
   onFeeder: (id: string) => void;
   onPlace: () => void;
   onCancel: () => void;
+  /** All rooms like this: the rooms one run takes, and what they come to. */
+  scope?: RoomScope;
+  onScope?: (s: RoomScope) => void;
+  counts?: Record<RoomScope, number>;
+  plan?: RoomLightPlan;
+  levelName?: string;
+  typeLabel?: string;
 }) {
   if (!room || !lit) return (<><h4>Light room</h4><div className="cad-devform"><span className="m">Point at a room to see its lights, click to keep them. The room needs an outline (Room area, Trace or Rooms).</span></div></>);
   const { input, result: r } = lit;
@@ -56,8 +66,10 @@ export default function RoomLightingPanel({ project, room, lit, settings, onSett
           <option value="">Choose a circuit…</option>
           {circuits.map((f) => <option key={f.id} value={f.id}>{circuitLabel(project, f)}</option>)}
         </select></label>
+        {scope && onScope && <div className="cad-scope-wrap"><span>Rooms</span><RoomScopeButtons scope={scope} onScope={onScope} counts={counts} /></div>}
         <label className="m"><span><input type="checkbox" checked={settings.replace} onChange={(e) => onSettings({ ...settings, replace: e.target.checked })} /> Replace the lights already in this room</span></label>
       </div>
+      {plan ? <RoomsLighting plan={plan} scope={scope} levelName={levelName} typeLabel={typeLabel} onPlace={onPlace} onCancel={onCancel} /> : <>
       {bad ? <div className="cad-devform"><span className="m">{r.invalid}</span></div> : (
         <dl className="cad-props" aria-label="Lighting result">
           <dt>Room index K</dt><dd>{r.k.toFixed(2)}</dd>
@@ -77,6 +89,28 @@ export default function RoomLightingPanel({ project, room, lit, settings, onSett
           <button className="chip" onClick={onCancel}>Cancel</button>
         </div>
         <span className="m">Average illuminance only — DIALux / Relux for uniformity and glare</span>
+      </div>
+      </>}
+    </>
+  );
+}
+
+/** The lights of several rooms, each room on one circuit, and Place. */
+function RoomsLighting({ plan, scope, levelName, typeLabel, onPlace, onCancel }: { plan: RoomLightPlan; scope?: RoomScope; levelName?: string; typeLabel?: string; onPlace: () => void; onCancel: () => void }) {
+  const n = plan.rows.length, s = (k: number) => (k === 1 ? '' : 's');
+  const out = plan.rows.filter((r) => !r.feederId), max = pointMax('ltg');
+  const per = plan.rows.filter((r) => r.feederId).map((r) => r.points.length);
+  return (
+    <>
+      <dl className="cad-props" aria-label="Lighting of the rooms">
+        <dt>Rooms</dt><dd>{(scope === 'type' ? `${n} ${typeLabel ?? ''} room${s(n)} on ${levelName ?? ''}` : `${n} room${s(n)} on ${levelName ?? ''}`).replace(/ {2,}/g, ' ').trim()}</dd>
+        <dt>Lights</dt><dd>{plan.lights}{per.length ? ` (${per.slice(0, 12).join(' · ')}${per.length > 12 ? ' …' : ''})` : ''}</dd>
+        <dt>Circuits</dt><dd>{plan.circuits.map((c) => <div key={c.feeder.id}>{circuitWay(c.feeder)} +{c.added} → {c.after} / {max}</div>)}</dd>
+        {out.length > 0 && <><dt>Left out</dt><dd>{out.map((r) => <div key={r.room.id}>{r.room.name}: {r.why}</div>)}</dd></>}
+      </dl>
+      <div className="cad-devform">
+        <div className="cad-devbtns"><button className="chip primary" disabled={!plan.lights} onClick={onPlace}>Place {plan.lights} light{s(plan.lights)} in {plan.rooms} room{s(plan.rooms)}</button><button className="chip" onClick={onCancel}>Cancel</button></div>
+        <span className="m">Each room's lights go on one circuit. Up to {ROOM_SCOPE_MAX} rooms a run.</span>
       </div>
     </>
   );

@@ -30,7 +30,7 @@ function show(over: Partial<Cad> = {}, a: Partial<RibbonActions> = {}) {
   const cad = {
     tool: 'none', onTool: vi.fn(), onOpen: vi.fn(), onSave: vi.fn(), onSaveDwg: vi.fn(), onClose: vi.fn(), onDelete: noop, hasSelection: false, onLayers: noop, layersOn: true, hasDrawing: true,
     file: { plans: [{ label: 'Ground floor · gf.dwg', title: 'Open gf.dwg', onClick: vi.fn() }], level: 'Ground floor', levelTitle: 'The level', levels: [{ label: 'Ground floor', title: '', onClick: noop }], unit: 'mm', unitTitle: 'The units', units: [{ label: 'Millimetres ✓', title: '', onClick: noop }] },
-    onRoles: noop, rolesOn: false, onAddFound: noop, onSchedules: noop, onPlaceBoard: noop, placingBoard: false, onCoverage: noop, coverageOn: false, copyLevels: [], onWireAll: noop, onTags: noop, tagsOn: false,
+    onRoles: noop, rolesOn: false, onAddFound: noop, onSchedules: noop, onPlaceBoard: noop, placingBoard: false, onCoverage: noop, coverageOn: false, onCopyLevels: noop, onWireAll: noop, onTags: noop, tagsOn: false,
     onCommand: vi.fn(), onLayoutCmd: vi.fn(), onLabels: vi.fn(), onProps: vi.fn(), onLayerManager: vi.fn(), onSetProps: vi.fn(), info: INFO, ...over
   } as Cad;
   let props = { ...BASE, cad, ...a } as unknown as RibbonActions;
@@ -719,10 +719,18 @@ describe('Design CAD ribbon: Devices and Level', () => {
   it('holds the tools of a whole room in Devices and those of the whole level in Level, the small ones named', () => {
     show();
     pick(ELEC);
-    expect(tools('Devices')).toEqual(['Add device', 'Fill room', 'Light room', 'Room devices', 'Emergency']);
-    expect(tools('Level')).toEqual(['Coverage', 'Copy to level']);
-    for (const name of ['Room devices', 'Emergency', 'Coverage', 'Copy to level']) expect(tool(name).querySelector('span')?.textContent).toBe(name);
+    expect(tools('Devices')).toEqual(['Add device', 'Fill room', 'Light room', 'Socket room', 'Room devices', 'Emergency']);
+    expect(tools('Level')).toEqual(['Check level', 'Coverage', 'Copy to levels']);
+    for (const name of ['Room devices', 'Emergency', 'Coverage', 'Copy to levels']) expect(tool(name).querySelector('span')?.textContent).toBe(name);
     expect(group('Rooms').querySelector('button[aria-label="Trace"] span')).toBeNull(); // a small tool of another panel stays icon only
+  });
+
+  it('starts Check level from the Level panel', () => {
+    const onTool = vi.fn();
+    show({ onTool });
+    pick(ELEC);
+    click(tool('Check level'));
+    expect(onTool).toHaveBeenCalledWith('check');
   });
 
   it("chooses Fill room's device on its arrow and starts FILL from the main button", () => {
@@ -761,7 +769,7 @@ describe('Design CAD ribbon: Devices and Level', () => {
     expect(tip('Add device').startsWith('Not available: open a drawing first.')).toBe(true);
     expect(tip('Coverage').startsWith('Not available: open a drawing first.')).toBe(true);
     rerender({ hasDrawing: true, copyWhy: 'the project has no other level' });
-    expect(tip('Copy to level').startsWith('Not available: the project has no other level.')).toBe(true);
+    expect(tip('Copy to levels').startsWith('Not available: the project has no other level.')).toBe(true);
     expect(tip('Add device').startsWith('Not available')).toBe(false);
   });
 

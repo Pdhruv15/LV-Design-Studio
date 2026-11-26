@@ -1,6 +1,6 @@
 import { buildingInfoOf } from '../../calc/building';
 import { levelCoverage, reachM, type RoomCoverage } from '../../elv/coverage';
-import { deviceLabel, SYSTEM_LABEL } from './elvLabels';
+import { coverageSystems, deviceLabel, SYSTEM_LABEL } from './elvLabels';
 import type { ElvSystem } from '../../elv/defaults';
 import { cameraRangeM, devicesOf, ELV_DEVICES, type ElvDeviceType } from '../../elv/devices';
 import { copyDevices, devicesOn, fillPoints, moveDevice, placeDevices, removeDevices, roomAt, type ElvDevice } from '../../elv/placed';
@@ -44,10 +44,13 @@ function coverageOf(p: Project, lv: PlanLevel, system: ElvSystem): RoomCoverage[
   return c;
 }
 
+/** The most devices one Fill room run places over several rooms. */
+export const FILL_MAX = 400;
+
 /** The ELV layer of a level: every device (other systems dimmed), the chosen system's coverage and uncovered squares,
  * and the Fill room preview for the room under the pointer. A device being dragged (`held`, metres) is drawn where it
  * is held; the uncovered squares follow when it is dropped. */
-export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: ElvSystem; coverage: boolean; selected: string | null; preview?: { type: ElvDeviceType; at: Pt }; held?: { id: string; at: Pt } }): ElvLayer {
+export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: ElvSystem; coverage: boolean; selected: string | null; preview?: { type: ElvDeviceType; at: Pt; rooms?: Pt[][] }; held?: { id: string; at: Pt } }): ElvLayer {
   const rooms = new Map(buildingInfoOf(p).rooms.map((r) => [r.id, r]));
   const list = devicesOn(p, lv.building, lv.level).map((d) => (d.id === o.held?.id ? { ...d, x: o.held.at[0], y: o.held.at[1] } : d));
   const symbols = list.map((d) => symbolOf(d.type, units([d.x, d.y], mpu), {
@@ -71,7 +74,13 @@ export function elvLayer(p: Project, lv: PlanLevel, mpu: number, o: { system: El
     const step = Math.max(0, ...coverage.map((c) => c.step));
     if (cells.length) gaps = { size: step / mpu, at: cells };
   }
-  if (o.preview) {
+  if (o.preview?.rooms) {
+    let n = 0;
+    for (const outline of o.preview.rooms) {
+      if (n >= FILL_MAX) break;
+      for (const d of fillPoints(outline, o.preview.type, FILL_MAX - n)) { symbols.push(symbolOf(d.type, units([d.x, d.y], mpu), { ghost: true })); n++; }
+    }
+  } else if (o.preview) {
     const room = roomAt(p, lv.building, lv.level, o.preview.at[0], o.preview.at[1]);
     if (room?.outline) for (const d of fillPoints(room.outline, o.preview.type)) symbols.push(symbolOf(d.type, units([d.x, d.y], mpu), { ghost: true }));
   }
@@ -111,6 +120,23 @@ export function fillAt(p: Project, lv: PlanLevel, type: ElvDeviceType, at: Pt): 
   return { next: project, message: `${room.name}: ${plural(items.length, deviceLabel(type).toLowerCase())} placed · ⌘Z to undo` };
 }
 
+/** Fill room over several rooms: a grid of the device in each, in the order given; a room that would take the run
+ * over FILL_MAX is left out (`left` counts them). One project change. */
+export function fillRooms(p: Project, lv: PlanLevel, type: ElvDeviceType, rooms: { name: string; outline: Pt[] }[]): { next?: Project; message: string; placed: number; left: number } {
+  const items: ReturnType<typeof fillPoints> = [];
+  let count = 0, left = 0;
+  for (const room of rooms) {
+    const grid = fillPoints(room.outline, type);
+    if (!grid.length) continue;
+    if (items.length + grid.length > FILL_MAX) { left++; continue; }
+    items.push(...grid);
+    count++;
+  }
+  if (!items.length) return { message: `${deviceLabel(type)} has no coverage spacing to fill by: place it one by one.`, placed: 0, left };
+  const { project } = placeDevices(p, lv.building, lv.level, items);
+  return { next: project, placed: items.length, left, message: `${plural(count, 'room')}: ${plural(items.length, deviceLabel(type).toLowerCase())} placed${left ? ` — ${plural(left, 'room')} left out: ${FILL_MAX} devices a run` : ''} · ⌘Z to undo` };
+}
+
 export function moveTo(p: Project, id: string, at: Pt): { next: Project; message: string } {
   const next = moveDevice(p, id, r2(at[0]), r2(at[1]));
   const d = next.elvDevices!.find((x) => x.id === id)!;
@@ -129,10 +155,28 @@ export function remove(p: Project, id: string): { next: Project; message: string
   return { next: removeDevices(p, [id]), message: `${deviceLabel(d.type)} ${id} deleted · ⌘Z to undo` };
 }
 
-/** Copy to level: this level's devices of the chosen system to another level, at the same plan positions. */
-export function copyTo(p: Project, from: PlanLevel, to: PlanLevel, system: ElvSystem, toName: string): { next?: Project; message: string } {
-  const types = devicesOf(system).map((d) => d.type);
-  if (!devicesOn(p, from.building, from.level).some((d) => types.includes(d.type))) return { message: `No ${SYSTEM_LABEL[system].toLowerCase()} devices on this level to copy.` };
-  const { project, ids, sameRoom } = copyDevices(p, { buildingId: from.building, levelId: from.level }, { buildingId: to.building, levelId: to.level }, types);
-  return { next: project, message: `${plural(ids.length, 'device')} copied to ${toName} (${sameRoom} in a room of the same name) · ⌘Z to undo` };
+/** Copy to levels: how many devices of each system the level holds (every system, in the order of SYSTEM_LABEL). */
+export function systemCounts(p: Project, lv: PlanLevel): { system: ElvSystem; label: string; n: number }[] {
+  const here = devicesOn(p, lv.building, lv.level);
+  return (Object.keys(SYSTEM_LABEL) as ElvSystem[]).map((system) => ({ system, label: SYSTEM_LABEL[system], n: here.filter((d) => ELV_DEVICES[d.type].system === system).length }));
+}
+
+/** Copy to levels: this level's devices of the systems chosen to another level at the same plan positions; `replace` first takes off that level's devices of those systems. */
+export function copySystems(p: Project, from: PlanLevel, to: PlanLevel, systems: ElvSystem[], replace: boolean): { next: Project; copied: number; removed: number } {
+  const types = systems.flatMap((s) => devicesOf(s).map((d) => d.type));
+  let next = p, removed = 0;
+  if (replace) {
+    const old = devicesOn(p, to.building, to.level).filter((d) => types.includes(d.type)).map((d) => d.id);
+    next = removeDevices(next, old); removed = old.length;
+  }
+  const r = copyDevices(next, { buildingId: from.building, levelId: from.level }, { buildingId: to.building, levelId: to.level }, types);
+  return { next: r.project, copied: r.ids.length, removed };
+}
+
+/** Check level: for each system Coverage offers that has devices on the level, how many rooms it does not fully cover. */
+export function coverageGaps(p: Project, lv: PlanLevel): { system: ElvSystem; label: string; roomsNotCovered: number }[] {
+  const here = devicesOn(p, lv.building, lv.level);
+  return coverageSystems()
+    .filter((s) => here.some((d) => ELV_DEVICES[d.type].system === s.id))
+    .map((s) => ({ system: s.id, label: s.label, roomsNotCovered: coverageOf(p, lv, s.id).filter((c) => c.gaps.length > 0).length }));
 }

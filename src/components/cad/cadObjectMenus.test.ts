@@ -85,8 +85,8 @@ describe('right-click menus (phase 2): LV and ELV objects', () => {
   it('a room: one list of its electrical tools; Fill names the ELV device chosen', () => {
     const r = roomEntry({ room, typeLabel: 'Office', elv: 'Smoke detector' });
     expect(r.label).toBe('Room Office 1');
-    expect(r.sub!.filter(isItem).map((x) => x.label)).toEqual(['Light room…', 'Lux check', 'Emergency lighting', 'Fill with Smoke detector', 'Select devices in room', 'Room loads', 'Area', 'Rename room…', 'Room type…']);
-    expect(roomEntry({ room }).sub!.filter(isItem)[3].label).toBe('Fill with an ELV device…');
+    expect(r.sub!.filter(isItem).map((x) => x.label)).toEqual(['Light room…', 'Socket room…', 'Lux check', 'Emergency lighting', 'Fill with Smoke detector', 'Select devices in room', 'Room loads', 'Area', 'Rename room…', 'Room type…']);
+    expect(roomEntry({ room }).sub!.filter(isItem)[4].label).toBe('Fill with an ELV device…');
   });
 
   it('room loads: W/m² × area, × the demand factor, and the devices inside', () => {

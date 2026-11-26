@@ -1,6 +1,6 @@
 # UI UX proposal – Design CAD Devices tools (2026-11-23)
 
-Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275) and 2 (v2.291); step 3 is next.
+Status: **approved 2026-11-23** ("go with recommendation": decisions A–F as recommended). Built so far: steps 1 (v2.275), 2 (v2.291), 3 (v2.307), 4 (v2.308 Fill room and Light room, v2.309 Room devices) 5 (v2.310) and 6 (v2.312); all six steps are built.
 
 Mockup: `docs/mockups/cad-devices-panel-mockup.html` (image: `cad-devices-panel-mockup.png`).
 
@@ -46,7 +46,7 @@ Two panels in place of one. The three main tools stay large, named and in the sa
 1. **Device gallery** on the Add device arrow: Find, the six devices used last, then the same groups as the side panel. The side-panel list stays as it is.
 2. **Circuit list with the room left**, in the Add device panel: the boards of this level first, each circuit with its points against the Rules-sheet maximum ("7 / 10"), a filter, full circuits marked. When the circuit in use fills up, the command line names the next circuit with room, and Tab takes it. A warning, not a stop, as today.
 3. **Socket room (SOCK)**: point at a room; sockets along its walls at the spacing typed, each turned to face into the room (right angles, as the saved rotation allows). Click a wall to leave it out, click a socket to take it off, then Place. The circuits used show before placing; a full circuit is skipped.
-4. **All rooms like this**, in Light room, Socket room, Fill room and Room devices: This room · Same type on the level · Whole level. Each room is worked out for its own outline. Lights and sockets go on to the next circuit with room at the Rules-sheet maximum. One undo step, and a fixed limit of rooms and points a run, in keeping with the limits of Room devices.
+4. **All rooms like this**, in Light room, Socket room, Fill room and Room devices: This room · Same type on the level · Whole level. Each room is worked out for its own outline. Lights and sockets go on to the next circuit with room at the Rules-sheet maximum. One undo step, and a fixed limit of rooms and points a run, in keeping with the limits of Room devices. **Built for Fill room and Light room (v2.308).** Each room's lights go on one circuit (a room is not split over two); a room that fits on none is listed and left out. Room devices followed (v2.309), with a limit of 400 devices a run.
 5. **Check level (CHK)**: one list for the level, worked out on demand. Rooms short of lights by the lumen method or with none, rooms with no socket, circuits over the Rules-sheet maximum, devices on a removed circuit, devices outside every room, ELV coverage gaps by system, boards of the level not on the plan, and the counts by type. A line goes to its place on the plan; some lines open the tool that fixes them.
 6. **Copy to levels** for lights, sockets and switches too: choose what to copy and to which levels; for each board of this level choose the board on the other level. A device goes on the same way of that board and counts on that circuit. Devices whose way is missing are listed and left out.
 
@@ -69,16 +69,16 @@ As they were asked:
 - **B. Names.** "Socket room", "Check level", "Copy to levels" and the panel name "Level" as drawn (recommended), or other words?
 - **C. New tools.** All six in the order of the build steps (recommended). Any to drop, or to move up?
 - **D. A circuit at its maximum.** Warn and offer the next circuit with room (recommended; it matches the warn-only rule built for moving devices, still open in the Device edit tools note), or stop placing at the maximum?
-- **E. Typical levels.** A typical level has one plan and one set of devices for all its floors, while each floor has its own boards. Should Copy to levels also put the same points on the boards of the other floors of a typical level? Recommended: decide with step 6, after a look at the load schedule side.
+- **E. Typical levels.** A typical level has one plan and one set of devices for all its floors, while each floor has its own boards. Should Copy to levels also put the same points on the boards of the other floors of a typical level? Recommended: decide with step 6, after a look at the load schedule side. **Decided with step 6 (v2.312): no.** Copy to levels works plan to plan and a typical level is one plan: the board chosen takes the points, the boards of its other floors are not changed. Putting the same points on those boards needs a link between the boards of a typical level on the load schedule side: a separate proposal, not built.
 - **F. Colours.** Give ELV devices a colour of their own on Graphite, or leave them as they are? Recommended: a small proposal of its own, with samples.
 
 ## Build steps
 
 1. The two panels with names, the arrows of Fill room and Coverage, tooltips that say why a tool is greyed, and the device gallery. Screen only. **Built (v2.275).** As built the Electrical tab measures 1,320 px: Copy to level keeps its arrow (a list of levels) until step 6. A panel order saved earlier gets Level right after Devices. The six devices placed last are kept per computer.
 2. Circuit list with the room left, and the next circuit with room on the command line. **Built (v2.291).** Each circuit shows the type it carries (a socket circuit shows its sockets even while a light is being placed); the next circuit offered is one that already carries the type, or an empty one.
-3. Check level.
+3. Check level. **Built (v2.307).** The lights a room needs come from the Light room settings, as Lux check; ELV coverage is listed for the systems that have devices on the level.
 4. All rooms like this: Fill room first (no circuits), then Light room and Room devices.
-5. Socket room.
-6. Copy to levels for lights, sockets and switches.
+5. Socket room. **Built (v2.310).** One room per run; the spacing is typed (it starts at 3 m), and a socket takes the nearest right angle to its wall.
+6. Copy to levels for lights, sockets and switches. **Built (v2.312).** A window in place of the arrow; a way that holds other points still takes the copies, with a note.
 
 One PR per step, each with its tests. Steps 3, 5 and 6 add a typed command (CHK, SOCK, CL) and steps 3 to 5 an entry on a room's right-click menu.
