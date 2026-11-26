@@ -465,7 +465,7 @@ const TAB_VIEWS: Record<RibbonTab, MainView[]> = {
   home: ['projects', 'dashboard', 'help', 'parameters', 'titleblock', 'building', 'design'],
   concept: ['building', 'load-assessment', 'sizing', 'substation-area', 'space-planning', 'dashboard'],
   schematic: ['panels', 'design', 'busbar', 'pfc', 'ups', 'solar', 'lightning', 'earth-schematic', 'elv', 'inbox'],
-  detailed: ['selection', 'voltage-drop', 'earthing', 'coordination'],
+  detailed: ['selection', 'voltage-drop', 'earthing', 'coordination', 'sc-sketch'],
   cad: ['cad', 'drawings', 'drawing-register'],
   // Sheets has its own Excel-style ribbon on the page, so this tab has no tools of its own.
   sheets: ['sheets'],
@@ -965,7 +965,8 @@ export default function Ribbon({ tab, onTab, a }: { tab: RibbonTab; onTab: (t: R
         view('selection', 'Selection', ListTree, 'Breaker and cable selection'),
         view('voltage-drop', 'Voltage drop', TrendingDown, 'Voltage drop calculation: panels and equipment cables, with report'),
         view('earthing', 'Earthing', Gauge, 'Fault loop impedance and disconnection time'),
-        view('coordination', 'Protection', ShieldCheck, 'Protection coordination and selectivity')
+        view('coordination', 'Protection', ShieldCheck, 'Protection coordination and selectivity'),
+        view('sc-sketch', 'SC sketch', Workflow, 'Short circuit sketch: draw sources, transformers, cables, generators and motors with fault data only, and read the fault level at each point')
       ],
       [gate('detailed')]
     ],

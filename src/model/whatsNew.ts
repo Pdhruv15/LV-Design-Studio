@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.325', date: '2026-11-26',
+    items: [
+      { title: 'Short circuit sketch', text: 'A new page, SC sketch on the Detailed tab: draw a simple network of sources, transformers, cables, generators and motors with fault data only, and read the fault level at each point. No panel names, breakers or circuits are needed. Sketches are saved with the project.' }
+    ]
+  },
+  {
     version: '2.324', date: '2026-11-26',
     items: [
       { title: 'Annotate: the Text panel', text: 'Text now keeps Text or Notes, whichever you used last (its arrow has both). Beside it: the text style list (choose one to make it current), a Find box (type words, Enter: find and replace them) and the height box (new text\'s height on paper, or the texts picked; varies when they differ). The text tools (Numbered text, Justify, Height, Align, Case, Frame, Mask, Copy words, Find and replace) are under the panel\'s name; its corner button opens Text style.', action: 'cad', actionLabel: 'Open Design CAD' },
