@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.314', date: '2026-11-26',
+    items: [
+      { title: 'Cable data by type: ratings built in', text: 'With Cable data by type on, PVC, aluminium and single-core cables now have built-in current ratings for the default installation method (free air / on a tray): industry-standard values, shown as reference values like the copper ones. These cables no longer show DATA REQUIRED there. Single cores smaller than 25 mm² take the multicore rating, which is the lower one. A row in Cables.xlsx still replaces a built-in value, and other installation methods still need their rating from your datasheet.' }
+    ]
+  },
+  {
     version: '2.312', date: '2026-11-26',
     items: [
       { title: 'Design CAD: Copy to levels', text: 'Level → Copy to levels (CL) now opens a window: tick what to copy (lights, sockets and equipment; switches and boxes; each ELV system) and the levels to copy to. For each board of this level choose the board on the other level: a light or socket goes on the same way of that board and counts on that circuit, as placing it by hand does. Where the way is missing, its devices are listed and left out. Replace first takes off what those levels already hold. One undo step for all levels. A typical level is one plan: the boards of its other floors are not changed.', action: 'cad', actionLabel: 'Open Design CAD' }
