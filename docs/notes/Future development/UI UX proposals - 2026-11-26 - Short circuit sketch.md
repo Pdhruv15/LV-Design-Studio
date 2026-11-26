@@ -1,6 +1,6 @@
 # Short circuit sketch — proposal (2026-11-26)
 
-Status: Proposal, awaiting approval.
+Status: Approved 2026-11-26: all seven decisions (A–G) with the recommended answers. Built: none yet. Next: step 1 solver.
 Mockup: `docs/mockups/sc-sketch-mockup.html` + `.png` (numbers illustrative).
 Related: [[UI UX proposals - 2026-11-24 - Per-unit fault study, fault points, transformers and cable types]] (step 7, voltage per board and in-line transformer, is needed for Send to SLD of in-line transformers).
 
