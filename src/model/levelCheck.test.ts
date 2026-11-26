@@ -29,7 +29,13 @@ describe('Check level', () => {
     const c = run(make());
     expect(texts(c, 'lighting')).toEqual(['Majlis — 2 lights, 4 needed for 300 lx', 'Store — no light']);
     expect(c.groups[0].findings[0]).toMatchObject({ ok: false, fix: { tool: 'lux', roomId: 'RA' }, box: { x0: 0, y0: 0, x1: 6, y1: 6 } });
-    expect(texts(run(make(), { lightNeed: () => undefined }), 'lighting')).toEqual(['Store — no light', '1 room meets its target']);
+    expect(texts(run(make(), { lightNeed: () => ({ needed: 2, lux: 300 }) }), 'lighting')).toEqual(['Store — no light', '1 room meets its target']);
+  });
+
+  it('flags a room with lights whose lighting target could not be verified', () => {
+    const c = run(make(), { lightNeed: () => undefined });
+    expect(texts(c, 'lighting')).toEqual(['Majlis — lighting target not verified', 'Store — no light']);
+    expect(c.groups[0].findings[0]).toMatchObject({ ok: false, fix: { tool: 'lux', roomId: 'RA' }, box: { x0: 0, y0: 0, x1: 6, y1: 6 } });
   });
 
   it('lists rooms with no socket and a tick line', () => {

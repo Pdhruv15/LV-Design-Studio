@@ -57,10 +57,16 @@ export function checkLevel(p: Project, level: LevelRef, input: LevelCheckInput):
   let lightOk = 0;
   for (const r of rooms) {
     const n = lvPlaced.filter((it) => lvType(it) === 'ltg' && inRoom(r, it)).length;
-    const need = input.lightNeed(r);
-    if (n === 0) lighting.push({ text: `${r.name} — no light`, ok: false, box: boxOfRoom(r), fix: { tool: 'lux', roomId: r.id } });
-    else if (need && n < need.needed) lighting.push({ text: `${r.name} — ${n} light${s(n)}, ${need.needed} needed for ${need.lux} lx`, ok: false, box: boxOfRoom(r), fix: { tool: 'lux', roomId: r.id } });
-    else lightOk++;
+    const need = n > 0 ? input.lightNeed(r) : undefined;
+    let problem: string;
+    if (n === 0) problem = 'no light';
+    else if (!need) problem = 'lighting target not verified';
+    else if (n < need.needed) problem = `${n} light${s(n)}, ${need.needed} needed for ${need.lux} lx`;
+    else {
+      lightOk++;
+      continue;
+    }
+    lighting.push({ text: `${r.name} — ${problem}`, ok: false, box: boxOfRoom(r), fix: { tool: 'lux', roomId: r.id } });
   }
   if (lightOk) lighting.push({ text: `${lightOk} room${s(lightOk)} meet${lightOk === 1 ? 's' : ''} ${lightOk === 1 ? 'its' : 'their'} target`, ok: true });
   if (lighting.length) groups.push({ id: 'lighting', title: 'Lighting', findings: lighting });
