@@ -17,7 +17,7 @@ Mockup: `docs/mockups/cad-elv-colour-mockup.html` (image: `cad-elv-colour-mockup
 
 ## Options
 
-- **A. One colour of its own for ELV devices (recommended).** Rose: #ff5fa2 on the dark themes, #c0267a on the light themes. Clear of LV yellow, the selection blue, snap green, sketch blue, the accent and the ink, also for colour-blind sight (nearest ΔE 14 or more); contrast 4.9–6.4 to the drawing. Coverage circles, the side palette and the gallery follow, as they use the ELV colour today.
+- **A. One colour of its own for ELV devices (recommended).** Rose: #ff5fa2 on the dark themes, #c0267a on the light themes. Clear of LV yellow, the selection blue, snap green, sketch blue, the accent and the ink, also for colour-blind sight (nearest ΔE 14 or more); contrast 4.9–6.4 to the drawing. Coverage circles, the side palette and the gallery follow, as they use the ELV colour today. With red-weak or green-weak sight the rose looks grey (see the mockup): neither yellow nor blue, the only room left on a plan where yellow is LV and blue is selection. It stays apart from the ink by lightness, and the letters on the ELV symbols tell the devices apart.
 - **B. A colour per ELV system** (fire alarm, security, data, sound): tells the systems apart at a glance, but adds four or five colours to a plan that already uses yellow, blue, green and light blue, needs a legend, and some pairs would clash for colour-blind sight. Not recommended now; it could follow later on its own.
 - **C. No new colour: a mark on ELV symbols** (a thin ring round the symbol): no colour clash, but weaker at a glance and it changes symbols users know. Not recommended.
 
