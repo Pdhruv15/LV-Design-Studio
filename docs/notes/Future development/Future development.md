@@ -8,6 +8,7 @@ Status checked against `main` at `9f2a2107` (v2.297) and open pull requests on 2
 
 | Feature | On main | Under review or remaining |
 |---|---|---|
+| [Detached windows for Design CAD and the SLD](<UI UX proposals - 2026-11-26 - Detached windows for Design CAD and the SLD.md>) | Nothing yet. | Approved 2026-11-26 as recommended. Step 0 (a check that a window drawn by the main page works) is next, then five build steps. |
 | [Fault study and multi-voltage transformers](<UI UX proposals - 2026-11-24 - Per-unit fault study, fault points, transformers and cable types.md>) | Cable data by type, generator minimum fault inputs, and per-unit and peak-current report tables (steps 1–3). | Fault-point marks and report table are in [PR #801](https://github.com/Pdhruv15/LV-Design-Studio/pull/801). Generator parallel operation, motor contribution, transformer voltage and tap selection, and per-board voltages with in-line transformers remain. |
 | [Short circuit sketch](<UI UX proposals - 2026-11-26 - Short circuit sketch.md>) | A simple page for short circuit levels from source, transformers, busbars, cables, generators and motors, with a Send to SLD button. | Proposal, awaiting approval (decisions A–G). |
 | [Design CAD Devices tools](<UI UX proposals - 2026-11-23 - Devices tools.md>) | Devices and Level panels, device gallery, circuit capacity and next-circuit suggestion (steps 1–2). | Check level is next, followed by batch room tools, Socket room and copying lights, sockets and switches to levels. |
