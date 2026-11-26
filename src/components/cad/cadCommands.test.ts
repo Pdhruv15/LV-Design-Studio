@@ -12,7 +12,7 @@ const BEFORE: Record<string, string> = {
   DEV: 'dev', DEVICE: 'dev', INSERT: '!blocksPalette', I: '!blocksPalette', '-INSERT': 'insert', ATT: '!attDef', ATTDEF: '!attDef', ATE: 'attedit', ATTEDIT: 'attedit', EATTEDIT: 'attedit', ATTEXT: '!attExport', M: 'move', MOVE: 'move', CO: 'copy', CP: 'copy', COPY: 'copy',
   RO: 'rotate', ROTATE: 'rotate', L: 'line', LINE: 'line', PL: 'pline', PLINE: 'pline', POLYLINE: 'pline',
   CT: 'tray', TRAY: 'tray', CABLETRAY: 'tray', CR: 'cable', ROUTE: 'cable', CABLEROUTE: 'cable', LR: 'link', LINK: 'link',
-  SCHED: '!schedules', SCHEDULES: '!schedules', UPDATE: '!schedules', FILL: 'fill', FR: 'fill', LUX: 'lux', LIGHTROOM: 'lux',
+  SCHED: '!schedules', SCHEDULES: '!schedules', UPDATE: '!schedules', FILL: 'fill', FR: 'fill', LUX: 'lux', LIGHTROOM: 'lux', SOCK: 'sockroom', SOCKETROOM: 'sockroom',
   EM: 'em', EMERGENCY: 'em', SEL: '!select', SELECT: '!select', ARL: 'arl', ARRAYLINE: 'arl', MA: 'match', MATCH: 'match', MATCHPROP: 'match',
   TRIM: 'trim', TM: 'trim', EX: 'extend', EXTEND: 'extend', O: 'offset', OFFSET: 'offset', F: 'fillet', FILLET: 'fillet',
   CHA: 'chamfer', CHAMFER: 'chamfer', BR: 'break', BREAK: 'break', J: 'join', JOIN: 'join', X: 'explode', EXPLODE: 'explode',
@@ -36,6 +36,7 @@ const BEFORE: Record<string, string> = {
 // Added since: the text and dimension styles (STYLE, DIMSTYLE).
 const ADDED: Record<string, string> = {
   // Dimensions panel (v2.273): DIM takes its kind from what is clicked; Aligned has its own tool; DIMLAYER.
+  CL: '!copyLevels', COPYLEVELS: '!copyLevels',
   DIMALIGNED: 'dimal', DAL: 'dimal', DIMLAYER: '!dimLayer', QDIM: 'qdim', DIMSPACE: 'dimspace',
   ST: '!textStyle', STYLE: '!textStyle', D: '!dimStyle', DST: '!dimStyle', DIMSTY: '!dimStyle', DIMSTYLE: '!dimStyle', TBSAVE: '!tbSave',
   // Right-click menus, phase 1: the tools behind the blank-canvas, command and selection menus.

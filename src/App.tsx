@@ -1636,10 +1636,7 @@ export default function App() {
             fillDevice: cadS.fillDevice, onFill: (t) => { cadS.setFillDevice(t); cadS.setTool('fill'); setView('cad'); },
             coverageSystem: cadS.coverageSystem, onCoverageOf: (s) => { if (s) cadS.setCoverageSystem(s); cadS.setCoverage(!!s); setView('cad'); },
             onWireAll: () => cadDo((x) => x.wireAll()), onTags: () => { cadS.setWireTags(!cadS.wireTags); setView('cad'); }, tagsOn: cadS.wireTags,
-            copyLevels: (() => {
-              const here = planLevel(project, cadS.view?.file).floor;
-              return view === 'cad' && here ? plansOf(project).filter((x) => x.floor.key !== here.key).map((x) => ({ label: x.label, title: `Copy to ${x.label}`, onClick: () => cadDo((a) => a.copyTo(x.floor.key)) })) : [];
-            })(),
+            onCopyLevels: () => cadDo((x) => x.copyLevels()),
             copyWhy: (() => {
               const here = planLevel(project, cadS.view?.file).floor;
               return view !== 'cad' ? 'the drawing is not showing' : !here ? 'this drawing is not the plan of a level yet: set its level in Drafting settings (DS)' : plansOf(project).every((x) => x.floor.key === here.key) ? 'the project has no other level' : undefined;

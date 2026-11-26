@@ -155,12 +155,22 @@ export function remove(p: Project, id: string): { next: Project; message: string
   return { next: removeDevices(p, [id]), message: `${deviceLabel(d.type)} ${id} deleted · ⌘Z to undo` };
 }
 
-/** Copy to level: this level's devices of the chosen system to another level, at the same plan positions. */
-export function copyTo(p: Project, from: PlanLevel, to: PlanLevel, system: ElvSystem, toName: string): { next?: Project; message: string } {
-  const types = devicesOf(system).map((d) => d.type);
-  if (!devicesOn(p, from.building, from.level).some((d) => types.includes(d.type))) return { message: `No ${SYSTEM_LABEL[system].toLowerCase()} devices on this level to copy.` };
-  const { project, ids, sameRoom } = copyDevices(p, { buildingId: from.building, levelId: from.level }, { buildingId: to.building, levelId: to.level }, types);
-  return { next: project, message: `${plural(ids.length, 'device')} copied to ${toName} (${sameRoom} in a room of the same name) · ⌘Z to undo` };
+/** Copy to levels: how many devices of each system the level holds (every system, in the order of SYSTEM_LABEL). */
+export function systemCounts(p: Project, lv: PlanLevel): { system: ElvSystem; label: string; n: number }[] {
+  const here = devicesOn(p, lv.building, lv.level);
+  return (Object.keys(SYSTEM_LABEL) as ElvSystem[]).map((system) => ({ system, label: SYSTEM_LABEL[system], n: here.filter((d) => ELV_DEVICES[d.type].system === system).length }));
+}
+
+/** Copy to levels: this level's devices of the systems chosen to another level at the same plan positions; `replace` first takes off that level's devices of those systems. */
+export function copySystems(p: Project, from: PlanLevel, to: PlanLevel, systems: ElvSystem[], replace: boolean): { next: Project; copied: number; removed: number } {
+  const types = systems.flatMap((s) => devicesOf(s).map((d) => d.type));
+  let next = p, removed = 0;
+  if (replace) {
+    const old = devicesOn(p, to.building, to.level).filter((d) => types.includes(d.type)).map((d) => d.id);
+    next = removeDevices(next, old); removed = old.length;
+  }
+  const r = copyDevices(next, { buildingId: from.building, levelId: from.level }, { buildingId: to.building, levelId: to.level }, types);
+  return { next: r.project, copied: r.ids.length, removed };
 }
 
 /** Check level: for each system Coverage offers that has devices on the level, how many rooms it does not fully cover. */

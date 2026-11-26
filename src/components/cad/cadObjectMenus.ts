@@ -116,7 +116,7 @@ export function roomEntry(s: RoomMenuState): CtxItem {
   const r = (label: string, arg: string, key?: string): CtxItem => ({ label, act: 'room', arg, ...(key ? { key } : {}) });
   return {
     label: `Room ${s.room.name}`, icon: 'room', lv: true,
-    sub: [r('Light room…', 'lux', 'LUX'), r('Lux check', 'luxcheck'), r('Emergency lighting', 'em', 'EM'), r(s.elv ? `Fill with ${s.elv}` : 'Fill with an ELV device…', 'fill', 'FILL'),
+    sub: [r('Light room…', 'lux', 'LUX'), r('Socket room…', 'sock', 'SOCK'), r('Lux check', 'luxcheck'), r('Emergency lighting', 'em', 'EM'), r(s.elv ? `Fill with ${s.elv}` : 'Fill with an ELV device…', 'fill', 'FILL'),
       r('Select devices in room', 'select'), r('Room loads', 'loads'), r('Area', 'area'), r('Rename room…', 'rename'), r('Room type…', 'type', s.typeLabel)]
   };
 }
