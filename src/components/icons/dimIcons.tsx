@@ -20,5 +20,7 @@ export const DimRadiusIcon = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="8"
 export const DimDiameterIcon = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="8" /><path d="M6.3 17.7L17.7 6.3" /><path d="M14.2 6.3h3.5v3.5M9.8 17.7H6.3v-3.5" /></Svg>;
 /** Continue: a chain of dimensions, each from the last. */
 export const DimContinueIcon = (p: P) => <Svg {...p}><path d="M3 6v13M10 6v13M17 6v13M3 11h14" /><path d="M17 11h4M19 9l2 2-2 2" /></Svg>;
+/** Quick: a row of dimensions over a pick, at a stroke. */
+export const DimQuickIcon = (p: P) => <Svg {...p}><path d="M3 5v14M10 5v14M21 5v14M3 9h18" /><path d="M15 12l-2.5 3.5h3L13 20" /></Svg>;
 /** Baseline: each dimension from the same first line, one step further out. */
 export const DimBaselineIcon = (p: P) => <Svg {...p}><path d="M3 4v16M11 13v7M20 9v11M3 13h8M3 9h17" /></Svg>;

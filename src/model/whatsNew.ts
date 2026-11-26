@@ -36,6 +36,13 @@ export const RELEASES: Release[] = [
     ]
   },
   {
+    version: '2.305', date: '2026-11-25',
+    items: [
+      { title: 'Design CAD: Quick dimension', text: 'Annotate → Dimensions → Quick (QDIM): pick lines, polylines, arcs and circles, drawn or of the opened drawing (a window too), press Enter, then click where the row goes. It draws one dimension between each pair of points in one go: horizontal above or below them, vertical beside them. Type C or B first for Continuous (a chain) or Baseline (each from the first); the choice is kept.', action: 'cad' },
+      { title: 'Dimensions: Adjust space', text: 'Adjust space (DIMSPACE, beside the style list): click the base dimension, then the ones to space, Enter, then the gap in metres. Enter alone spaces them twice the text apart; 0 lines them up with the base. Dimensions in one chain stay in one row. Update has moved beside the layer list.', action: 'cad' }
+    ]
+  },
+  {
     version: '2.304', date: '2026-11-25',
     items: [
       { title: 'Load schedule: one ELCB at the incomer, or an RCBO on every circuit', text: 'Re-group all ELCBs now also offers two whole-board schemes. One ELCB at the incomer covers every circuit of the DB, ways added later too, rated at least as the incomer; it is time-delayed (S-type) when 30 mA RCBOs sit below it, which you can change in its dialog. RCBO on every circuit gives each circuit an RCBO, and new circuits get one too until you choose a New ELCBs size. No circuit moves in either scheme.' }
