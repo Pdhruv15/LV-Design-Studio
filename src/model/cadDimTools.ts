@@ -1,12 +1,13 @@
 import type { Project, SketchItem } from '../types';
 import { layerFileOf, withLayerFile } from './cadLayerState';
 import { roundOfSegments, segmentsBetween } from './cadDims';
-import { dimDir, dimMeasure, linearDir } from './cadSketch';
+import { dimDir, dimMeasure, dimOf, linearDir } from './cadSketch';
 import { dimStylesOf, fullDimStyle, lookOf, STANDARD, type CadDimStyle } from './cadStyles';
 
 /** Design CAD → Annotate → Dimensions: the layer new dimensions go on (DIMLAYER), the style a dimension was drawn with
  * (the ribbon's style list; DIMSTYLE A gives the dimensions picked the current one), what DIM makes of a click, the
- * row of dimensions Quick dimension (QDIM) draws over the objects picked, and Adjust space (DIMSPACE). */
+ * row of dimensions Quick dimension (QDIM) draws over the objects picked, Adjust space (DIMSPACE), the gaps Break
+ * (DIMBREAK) cuts where other lines cross a dimension, and where Text position (DIMTEDIT) puts its text. */
 
 /** The app's annotation layer, where new dimensions go until another is set. */
 export const ANNO_LAYER = 'LV-ANNO';
@@ -25,6 +26,16 @@ export function dimLayerOf(p: Project, file: string | undefined, current: string
 /** The project with the drawing's DIMLAYER set; the annotation layer (or blank) is kept as no setting. */
 export const withDimLayer = (p: Project, file: string, value: string | undefined): Project =>
   withLayerFile(p, file, { dimLayer: value && value.trim() && !same(value.trim(), ANNO_LAYER) ? value.trim() : undefined });
+
+/** The drawing's datum for ordinate dimensions (absent: 0,0). */
+export const ordDatumOf = (p: Project, file: string | undefined): Pt => layerFileOf(p, file).ordDatum ?? [0, 0];
+/** The project with the drawing's ordinate datum set; 0,0 (or none) is kept as no setting. */
+export const withOrdDatum = (p: Project, file: string, pt: Pt | undefined): Project =>
+  withLayerFile(p, file, { ordDatum: pt && (pt[0] !== 0 || pt[1] !== 0) ? [pt[0], pt[1]] : undefined });
+/** An ordinate dimension's `dir` from its feature point to its leader's end: π/2 (up or down, it measures x) when forced
+ * to x or when the end lies further along y, else 0 (across, it measures y). */
+export const ordinateDir = (f: Pt, e: Pt, force?: 'x' | 'y'): number =>
+  (force ? force === 'x' : Math.abs(e[1] - f[1]) >= Math.abs(e[0] - f[0])) ? Math.PI / 2 : 0;
 
 /** The style a dimension was drawn with (Standard when it records none). */
 export const styleOfDim = (it: Pick<SketchItem, 'dimStyle'>): string => it.dimStyle ?? STANDARD;
@@ -162,4 +173,70 @@ export function spacedDims(base: SketchItem, items: readonly SketchItem[], gap: 
     return [{ ...it, pts: [p1, p2, [at[0] + nx * d, at[1] + ny * d] as Pt, ...rest] }];
   });
   return { moved, spaced: ok.length, skipped: dims.length - ok.length };
+}
+
+/** Break: a gap in one of a dimension's lines (0 its dimension line, 1 and 2 its extension lines), how far along it. */
+export type DimBreak = [0 | 1 | 2, number];
+/** Where two segments cross (their ends included), or undefined. */
+function crossing([a, b]: Seg, [c, d]: Seg): Pt | undefined {
+  const r = [b[0] - a[0], b[1] - a[1]], q = [d[0] - c[0], d[1] - c[1]], den = r[0] * q[1] - r[1] * q[0];
+  if (Math.abs(den) < 1e-12 * Math.max(1e-12, Math.hypot(r[0], r[1]) * Math.hypot(q[0], q[1]))) return undefined;
+  const t = ((c[0] - a[0]) * q[1] - (c[1] - a[1]) * q[0]) / den, u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den, e = 1e-9;
+  return t < -e || t > 1 + e || u < -e || u > 1 + e ? undefined : [a[0] + r[0] * t, a[1] + r[1] * t];
+}
+/** Break works on linear and aligned dimensions. */
+export const breaksDim = (it: SketchItem): boolean => it.kind === 'dim' && !it.dimKind && it.pts.length >= 3;
+/** Break: the gaps for a linear or aligned dimension where the segments cross its lines. Crossings within half a gap
+ * of a line's ends are left out, and ones closer than a gap count once; at most 50. */
+export function dimBreaksAt(it: SketchItem, segs: readonly Seg[], metresPerUnit: number): DimBreak[] {
+  if (!breaksDim(it)) return [];
+  const { brk: _b, ...whole } = it, d = dimOf(whole, metresPerUnit);
+  if (!d.parts || d.gap === undefined) return [];
+  const g = d.gap, out: DimBreak[] = [];
+  for (const [e, q] of [[0, d.parts.dim], [1, d.parts.ext[0]], [2, d.parts.ext[1]]] as [0 | 1 | 2, Seg | undefined][]) {
+    if (!q) continue;
+    const l = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]), ts: number[] = [];
+    for (const sg of segs) { const x = crossing(q, sg); if (!x) continue; const t = Math.hypot(x[0] - q[0][0], x[1] - q[0][1]); if (t > g / 2 && t < l - g / 2) ts.push(t); }
+    ts.sort((x, y) => x - y);
+    let last = Number.NEGATIVE_INFINITY;
+    for (const t of ts) if (t - last > g) { out.push([e, t]); last = t; }
+  }
+  return out.slice(0, 50);
+}
+/** The dimension with its breaks set (none: taken off). */
+export function withBreaks(it: SketchItem, brk: readonly DimBreak[]): SketchItem {
+  const { brk: _b, ...rest } = it;
+  return brk.length ? { ...rest, brk: [...brk] } : rest;
+}
+
+/** Text position moves, and puts left, right or centre, the text of linear and aligned dimensions; any dimension's
+ * text can be turned or sent home. */
+export const movesDimText = breaksDim;
+/** Text position: the text moved to `at` (its middle), kept as the dimension's fourth point. */
+export const dimTextAt = (it: SketchItem, at: Pt): SketchItem => ({ ...it, pts: [it.pts[0], it.pts[1], it.pts[2], at] });
+/** Text position Left, Right or Center: next to the first or second extension line, or centred, across the line as its
+ * style puts it; a text moved off its place comes back. Undefined for one drawn before styles (it has no look). */
+export function dimTextAlong(it: SketchItem, along: 'first' | 'second' | undefined): SketchItem | undefined {
+  if (!it.look) return undefined;
+  const { textAlong: _a, ...look } = it.look;
+  return { ...it, pts: it.pts.slice(0, 3), look: along ? { ...look, textAlong: along } : look };
+}
+/** Text position Home: where its style puts the text (`along` the style's place along the line): moved and turned text
+ * dropped. */
+export function dimTextHome(it: SketchItem, along: 'first' | 'second' | undefined): SketchItem {
+  const { rot: _r, ...rest } = it;
+  const pts = movesDimText(it) ? it.pts.slice(0, 3) : it.pts;
+  if (!it.look) return { ...rest, pts };
+  const { textAlong: _a, ...look } = it.look;
+  return { ...rest, pts, look: along ? { ...look, textAlong: along } : look };
+}
+/** Text position Angle: the text turned to `deg` degrees; undefined puts it back as drawn. */
+export function dimTextAngle(it: SketchItem, deg: number | undefined): SketchItem {
+  const { rot: _r, ...rest } = it;
+  return deg === undefined ? rest : { ...rest, rot: (deg * Math.PI) / 180 };
+}
+/** Where a dimension's style puts its text along its line (for Home). */
+export function styleTextAlong(p: Project, it: SketchItem): 'first' | 'second' | undefined {
+  const st = dimStylesOf(p).styles.find((x) => same(x.name, styleOfDim(it)));
+  return st ? lookOf(fullDimStyle(st, p), 1).textAlong : undefined;
 }

@@ -127,7 +127,7 @@
       "sheet": "Cables",
       "about": [
         "Cable data used by every calculation: one row per conductor size and cable family.",
-        "Conductor, Insulation and Form name the cable family of a row; left blank the row is copper / XLPE / multicore, as before. Rows of another family (aluminium, PVC, single-core) are used by projects with Cable data by type on (Project settings); a size with no row there has no current rating and shows DATA REQUIRED.",
+        "Conductor, Insulation and Form name the cable family of a row; left blank the row is copper / XLPE / multicore, as before. Rows of another family (aluminium, PVC, single-core) are used by projects with Cable data by type on (Project settings); the app has reference ratings for them on the default installation method (free air / on a tray); a row here replaces them, and another installation method with no rating shows DATA REQUIRED.",
         "Pre-filled with the app's reference values (Cu/XLPE multicore, free air, 30 °C) - replace them with your manufacturer's datasheet.",
         "R at 20 °C in ohm/km (IEC 60228), reactance X in ohm/km, current rating in A before ambient derating. Rate per m is used for the BOQ.",
         "If this sheet is empty or unreadable the app falls back to its reference values and says so on the Database screen.",

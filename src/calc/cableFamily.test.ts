@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { alphaOf, familyFromWords, familyLabel, familyOfType, feederFamily, kCpcOf, singleCoreXOhmPerKm, type CableFamily } from './cableFamily';
+import { alphaOf, familyFromWords, familyLabel, familyOfType, familyRatingA, feederFamily, kCpcOf, singleCoreXOhmPerKm, type CableFamily } from './cableFamily';
 import { ambientCorrectionFactor, cableDataFindings, cableDataStatus, cables, getCable, methodRating, resolveCable, setCables, typesOnDefaultData } from './cableTable';
 import { cableImpedance, evaluateFeeder, feederRating, rOperatingOhmPerKm } from './electrical';
 import { evaluateEarthing } from './earthing';
@@ -65,12 +65,13 @@ describe('cable data by family', () => {
     expect(methodRating(95, 'E')?.a).toBe(306);
   });
 
-  it('builds aluminium from IEC 60228 with the multicore reactance and no rating', () => {
+  it('builds aluminium from the standard resistance, the multicore reactance and its built-in rating', () => {
     const r = resolveCable(95, AL)!;
     expect(r.source).toBe('reference');
     expect(r.spec.rOhmPerKm20C).toBe(0.32);
     expect(r.spec.xOhmPerKm).toBe(getCable(95).xOhmPerKm);
-    expect(methodRating(95, 'E', AL)).toBeNull();
+    expect(methodRating(95, 'E', AL)).toEqual({ a: 227, source: 'reference' });
+    expect(methodRating(95, 'C', AL)).toBeNull(); // other installation methods: no built-in rating
     expect(resolveCable(10, AL)).toBeNull(); // not made in aluminium
     expect(() => getCable(10, AL)).toThrow(/Al\/XLPE multicore/);
   });
@@ -123,13 +124,23 @@ describe('a project with cable data by type', () => {
     expect(vdRow(on, al).vdPct).toBeCloseTo(a.vdPct, 6);
   });
 
-  it('on: with no rating in the data the rating is missing (DATA REQUIRED), never the copper one', () => {
+  it('on: the built-in rating of the family is derated and used, reported as a reference value', () => {
     const on = project([al], { cableDataByType: true });
     const rating = feederRating(on, al);
+    expect(rating.baseA).toBe(227);
+    expect(rating.iz).toBeCloseTo(227 * ambientCorrectionFactor(40), 6);
+    expect(cableDataStatus(on).families).toMatchObject([{ csaMm2: 95, label: 'Al/XLPE multicore', source: 'reference', rating: 'reference' }]);
+    expect(cableDataFindings(on)).toEqual([]);
+    expect(cableDataFindings({ ...on, strictCableData: true }).some((x) => x.status === 'bad' && /95 mm² Al\/XLPE multicore without manufacturer data/.test(x.text))).toBe(true);
+  });
+
+  it('on: an installation method with no rating for the family is missing (DATA REQUIRED), never the copper one', () => {
+    const clipped = { ...al, installMethod: 'C' as const };
+    const on = project([clipped], { cableDataByType: true });
+    const rating = feederRating(on, clipped);
     expect(rating.iz).toBeNaN();
     expect(rating.missing).toMatch(/Al\/XLPE multicore/);
-    expect(cableDataStatus(on).families).toMatchObject([{ csaMm2: 95, label: 'Al/XLPE multicore', source: 'reference', rating: undefined }]);
-    expect(cableDataFindings(on).some((x) => x.status === 'bad' && /no current rating for 95 mm² Al\/XLPE multicore/.test(x.text))).toBe(true);
+    expect(cableDataFindings(on).some((x) => x.status === 'bad' && /no current rating for 95 mm² Al\/XLPE multicore \(C\)/.test(x.text))).toBe(true);
   });
 
   it('on: a rating from Cables.xlsx is derated and used', () => {
@@ -148,5 +159,53 @@ describe('a project with cable data by type', () => {
   it('on: a protective conductor size aluminium is not made in is taken as copper', () => {
     const f = feeder({ cableType: 'AL/XLPE/SWA/PVC', cableCsaMm2: 16, cpcMm2: 6, loadKw: 10, breakerRatingA: 32 });
     expect(Number.isFinite(evaluateEarthing(project([f], { cableDataByType: true }), f).zsOhm)).toBe(true);
+  });
+});
+
+describe('built-in ratings of the cable families', () => {
+  const fam = (conductor: 'cu' | 'al', insulation: 'xlpe' | 'pvc', form: 'multi' | 'trefoil' | 'flat'): CableFamily => ({ conductor, insulation, form });
+  const SIZES = [16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300];
+  it('gives the standard values at 95 mm²', () => {
+    expect(familyRatingA(fam('cu', 'pvc', 'multi'), 95)).toBe(238);
+    expect(familyRatingA(fam('al', 'xlpe', 'multi'), 95)).toBe(227);
+    expect(familyRatingA(fam('al', 'pvc', 'multi'), 95)).toBe(183);
+    expect(familyRatingA(fam('cu', 'xlpe', 'trefoil'), 95)).toBe(328);
+    expect(familyRatingA(fam('cu', 'xlpe', 'flat'), 95)).toBe(342);
+    expect(familyRatingA(fam('cu', 'pvc', 'trefoil'), 95)).toBe(264);
+    expect(familyRatingA(fam('al', 'xlpe', 'trefoil'), 95)).toBe(253);
+  });
+  it('rises with the size in every family, and keeps the physical order between families', () => {
+    for (const f of [fam('cu', 'pvc', 'multi'), fam('al', 'xlpe', 'multi'), fam('al', 'pvc', 'multi'), fam('cu', 'xlpe', 'trefoil'), fam('cu', 'xlpe', 'flat'), fam('cu', 'pvc', 'trefoil'), fam('cu', 'pvc', 'flat'), fam('al', 'xlpe', 'trefoil'), fam('al', 'xlpe', 'flat'), fam('al', 'pvc', 'trefoil')]) {
+      const amps = SIZES.map((s) => familyRatingA(f, s)!);
+      expect(amps.every((a) => a > 0), familyLabel(f)).toBe(true);
+      expect(amps.every((a, i) => i === 0 || a > amps[i - 1]), familyLabel(f)).toBe(true);
+    }
+    for (const s of SIZES.slice(1)) {
+      expect(familyRatingA(fam('cu', 'pvc', 'multi'), s)!).toBeLessThan(methodRating(s, 'E')!.a); // PVC below XLPE
+      expect(familyRatingA(fam('al', 'xlpe', 'multi'), s)!).toBeLessThan(methodRating(s, 'E')!.a); // aluminium below copper
+      expect(familyRatingA(fam('al', 'pvc', 'multi'), s)!).toBeLessThan(familyRatingA(fam('al', 'xlpe', 'multi'), s)!);
+      expect(familyRatingA(fam('cu', 'xlpe', 'flat'), s)!).toBeGreaterThan(familyRatingA(fam('cu', 'xlpe', 'trefoil'), s)!); // side by side cools better
+      expect(familyRatingA(fam('cu', 'xlpe', 'trefoil'), s)!).toBeGreaterThan(familyRatingA(fam('cu', 'pvc', 'trefoil'), s)!);
+      // Aluminium carries about 0.78 of copper in the same cable.
+      const ratio = familyRatingA(fam('al', 'xlpe', 'trefoil'), s)! / familyRatingA(fam('cu', 'xlpe', 'trefoil'), s)!;
+      expect(ratio).toBeGreaterThan(0.74); expect(ratio).toBeLessThan(0.8);
+    }
+  });
+  it('small single cores take the multicore rating of the same conductor and insulation (the lower one)', () => {
+    expect(familyRatingA(fam('cu', 'pvc', 'trefoil'), 2.5)).toBe(25);
+    expect(familyRatingA(fam('cu', 'xlpe', 'flat'), 16)).toBe(100);
+    expect(familyRatingA(fam('al', 'xlpe', 'trefoil'), 16)).toBe(77);
+    expect(familyRatingA(fam('cu', 'pvc', 'trefoil'), 16)!).toBeLessThan(familyRatingA(fam('cu', 'pvc', 'trefoil'), 25)!);
+  });
+  it('has none where the family is not made or not tabulated', () => {
+    expect(familyRatingA(fam('al', 'xlpe', 'multi'), 10)).toBeUndefined();
+    expect(familyRatingA(fam('al', 'pvc', 'flat'), 95)).toBeUndefined();
+    expect(familyRatingA(fam('cu', 'pvc', 'multi'), 400)).toBeUndefined();
+  });
+  it('a PVC wire in a project with cable data by type gets a rating and a result', () => {
+    const wire = feeder({ cableType: 'PVC 1C', cableCsaMm2: 4, cores: 2, loadKw: 3, breakerRatingA: 20, lengthM: 20 });
+    const on = project([wire], { cableDataByType: true });
+    expect(feederRating(on, wire).baseA).toBe(34);
+    expect(Number.isFinite(evaluateFeeder(on, wire).ampacity)).toBe(true);
   });
 });
