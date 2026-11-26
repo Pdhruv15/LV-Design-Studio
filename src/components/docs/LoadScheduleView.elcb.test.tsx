@@ -135,7 +135,7 @@ describe('Add → ELCB / RCD', () => {
     const before = elcbGroups(latest, board()).map((g) => g.ways);
     const sel = document.querySelector<HTMLSelectElement>('.ls-head select')!;
     expect(sel.closest('label')!.textContent).toMatch(/^New ELCBs/);
-    expect([...sel.options].map((o) => o.textContent)).toEqual(['3 circuits (1 way)', '6 circuits (2 ways)', '9 circuits (3 ways)', '12 circuits (4 ways)', 'No ELCB']);
+    expect([...sel.options].map((o) => o.textContent)).toEqual(['3 circuits (1 way)', '6 circuits (2 ways)', '9 circuits (3 ways)', '12 circuits (4 ways)', 'RCBO on every circuit', 'No ELCB']);
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(sel, '3');
       sel.dispatchEvent(new Event('change', { bubbles: true }));
@@ -282,6 +282,41 @@ describe('Add → ELCB / RCD', () => {
     act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
     expect(board()).toMatchObject({ elcbs: undefined, rcboEveryCircuit: true });
     expect(scheduleCircuits(latest, BOARD).every((f) => f.rcbo || f.noRcd)).toBe(true);
+  });
+
+  it('the New ELCBs list says what new circuits get: RCBO on every circuit, or ELCB-1 at the incomer with the sizes greyed', () => {
+    const choose = (sel: HTMLSelectElement, v: string) => act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(sel, v);
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const list = () => [...document.querySelectorAll<HTMLSelectElement>('.ls-head select')].find((x) => x.closest('label')!.textContent!.startsWith('New ELCBs'))!;
+    mount();
+    const before = elcbGroups(latest, board()).map((g) => g.ways);
+    const devices = latest.feeders.filter((f) => f.rcbo).length;
+    choose(list(), 'rcbo');
+    expect(board().rcboEveryCircuit).toBe(true);
+    expect(list().value).toBe('rcbo');
+    expect(latest.feeders.filter((f) => f.rcbo).length).toBe(devices);
+    expect(elcbGroups(latest, board()).map((g) => g.ways)).toEqual(before);
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('.ls-actions button')].find((b) => b.textContent!.includes('1-phase circuit'))!.click());
+    expect(latest.feeders.filter((f) => f.rcbo).length).toBe(devices + 1);
+    choose(list(), '6');
+    expect(board().rcboEveryCircuit).toBeUndefined();
+    expect(list().value).toBe('6');
+    openMenu();
+    act(() => item('Re-group all ELCBs…').click());
+    const dlg = document.querySelector('.elcb-dialog')!;
+    act(() => [...dlg.querySelectorAll('label')].find((l) => l.textContent!.includes('One ELCB at the incomer'))!.querySelector('input')!.click());
+    act(() => dlg.querySelector<HTMLButtonElement>('button[type="submit"]')!.click());
+    const opts = [...list().options];
+    expect(list().value).toBe('incomer');
+    expect(opts.map((o) => [o.textContent, o.disabled])).toEqual([['ELCB-1 at the incomer', false], ['3 circuits (1 way)', true], ['6 circuits (2 ways)', true], ['9 circuits (3 ways)', true], ['12 circuits (4 ways)', true], ['RCBO on every circuit', false], ['No ELCB', true]]);
+    expect(list().closest('label')!.title).toMatch(/^ELCB-1 at the incomer already covers every way/);
+    choose(list(), 'rcbo');
+    expect(board()).toMatchObject({ rcboEveryCircuit: true, elcbs: [expect.objectContaining({ incomer: true })] });
+    choose(list(), 'incomer');
+    expect(board().rcboEveryCircuit).toBeUndefined();
+    expect(board().elcbs).toEqual([expect.objectContaining({ incomer: true })]);
   });
 
   it('has no ELCB / RCD menu on the MD form', () => {

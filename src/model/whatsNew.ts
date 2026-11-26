@@ -18,6 +18,12 @@ export interface Release { version: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: Release[] = [
   {
+    version: '2.313', date: '2026-11-26',
+    items: [
+      { title: 'Load schedule: New ELCBs says what new circuits get', text: 'The New ELCBs list in the board bar now has RCBO on every circuit: circuits you add from then on get an RCBO, and the ones already on the DB keep their device. On a DB with one ELCB at the incomer the list shows ELCB-1 at the incomer and greys the sizes, because that ELCB already covers every way; RCBO on every circuit still works there, below it.' }
+    ]
+  },
+  {
     version: '2.312', date: '2026-11-26',
     items: [
       { title: 'Design CAD: Copy to levels', text: 'Level → Copy to levels (CL) now opens a window: tick what to copy (lights, sockets and equipment; switches and boxes; each ELV system) and the levels to copy to. For each board of this level choose the board on the other level: a light or socket goes on the same way of that board and counts on that circuit, as placing it by hand does. Where the way is missing, its devices are listed and left out. Replace first takes off what those levels already hold. One undo step for all levels. A typical level is one plan: the boards of its other floors are not changed.', action: 'cad', actionLabel: 'Open Design CAD' }

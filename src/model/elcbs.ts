@@ -202,6 +202,22 @@ export function setNewElcbSize(project: Project, boardId: string, size: ElcbSize
   return refreshBoard({ ...fixed, boards: fixed.boards.map((b) => (b.id === boardId ? { ...b, elcbGroupSize: size, rcboEveryCircuit: undefined } : b)) }, boardId);
 }
 
+/** "RCBO on every circuit" from the New ELCBs list: circuits added from now on get an RCBO; the circuits already on the
+ * DB keep their device (Re-group gives them all one). The ELCBs on the DB, an incomer one too, stay as they are. */
+export function setNewRcbos(project: Project, boardId: string): Project {
+  boardOf(project, boardId);
+  const fixed = fixElcbs(project, boardId);
+  return { ...fixed, boards: fixed.boards.map((b) => (b.id === boardId ? { ...b, rcboEveryCircuit: true } : b)) };
+}
+
+/** What the New ELCBs list shows for a DB: what a circuit added now gets. */
+export type NewElcbsChoice = ElcbSize | 'rcbo' | 'incomer';
+export function newElcbsChoice(board: { elcbGroupSize?: ElcbSize; rcboEveryCircuit?: boolean; elcbs?: { incomer?: true }[] }): NewElcbsChoice {
+  if (board.rcboEveryCircuit) return 'rcbo';
+  if (board.elcbs?.some((e) => e.incomer)) return 'incomer';
+  return board.elcbGroupSize ?? 6;
+}
+
 /** A whole-board scheme in place of ELCBs of one size: one ELCB at the incomer, or an RCBO on every circuit. */
 export type ElcbScheme = 'incomer' | 'rcbo';
 export interface RegroupOptions { size: ElcbSize; keepApart: boolean; keepRcbos: boolean; scheme?: ElcbScheme }
